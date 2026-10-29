@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smokeline-backend"
+version = "0.1.0"
+description = "SmokeLine Mirage smoke-lineup service"
+requires-python = ">=3.11,<3.12"
+dynamic = ["dependencies"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["integration: runs against an explicitly provisioned PostgreSQL and FFmpeg stack"]
+
+[tool.coverage.run]
+# FastAPI TestClient uses a thread; SQLAlchemy's async bridge uses greenlet.
+# Both must be traced or real database transaction bodies are undercounted.
+concurrency = ["thread", "greenlet"]

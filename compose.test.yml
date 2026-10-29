@@ -1,0 +1,60 @@
+name: smokeline-e2e
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: smokeline
+  backend:
+    image: smokeline-backend-test:phase1
+    build:
+      target: test
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://smokeline:smokeline@postgres:5432/smokeline
+      POSTGRES_PASSWORD: smokeline
+      DB_POOL_SIZE: "1"
+      DB_MAX_OVERFLOW: "0"
+      PUBLIC_BASE_URL: http://nginx:8080
+      SITE_DOMAIN: ""
+      ALLOWED_ORIGINS: http://nginx:8080
+      MEDIA_STORE_ROOT: /data/media-store
+      TEMP_ROOT: /data/tmp
+      BACKUP_ROOT: /data/backups
+      AI_PROVIDER: ${TEST_AI_PROVIDER:-fake}
+      DASHSCOPE_API_KEY: ""
+      DASHSCOPE_API_HOST: ""
+      QWEN_TEXT_MODEL: qwen3.7-flash-2026-07-15
+      QWEN_ASR_MODEL: qwen-audio-3.0-asr-flash
+      DAILY_LLM_CALL_LIMIT: "100"
+      DAILY_ASR_SECONDS_LIMIT: "600"
+      ADMIN_USERNAME: admin
+      # Public test-only Argon2id fixture; never copy this value to production.
+      ADMIN_PASSWORD_HASH_B64: JGFyZ29uMmlkJHY9MTkkbT02NTUzNix0PTMscD0yJFN3R3d6dEI3UnB4NkwwdnhydXR4SlEkeDdaYjJYbEFaajExMG1qbHF2bFJISzIvZVNNMW9aQTVsckNUVElZRlZJTQ==
+      TMPDIR: /data/tmp
+    ports: []
+  nginx:
+    image: smokeline-nginx-test:phase1
+    build:
+      args:
+        BUILD_MODE: test
+    ports: []
+  test-runner:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: e2e
+    working_dir: /opt/smokeline/frontend
+    command: ["npm", "run", "e2e"]
+    environment:
+      BASE_URL: http://nginx:8080
+    depends_on:
+      nginx:
+        condition: service_healthy
+    volumes:
+      - ./.workcache/phase2-e2e-artifacts:/opt/smokeline/frontend/test-results
+    networks:
+      - default
+
+networks:
+  default:
+    internal: true

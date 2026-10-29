@@ -1,0 +1,24 @@
+{
+  "name": "smokeline-tactics-t0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "build": "vite build",
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint --config eslint.config.mjs eslint.config.mjs src test server.mjs scripts",
+    "test:pg": "node scripts/pg-smoke.mjs"
+  },
+  "dependencies": {
+    "pg": "8.23.1",
+    "ws": "8.22.0",
+    "yjs": "13.6.33"
+  },
+  "devDependencies": {
+    "eslint": "10.9.1",
+    "vite": "8.3.5"
+  }
+}

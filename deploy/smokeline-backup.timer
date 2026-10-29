@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily SmokeLine backup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Asia/Shanghai
+Persistent=true
+Unit=smokeline-backup.service
+
+[Install]
+WantedBy=timers.target

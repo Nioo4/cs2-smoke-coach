@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:16-bookworm@sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825
+    environment:
+      POSTGRES_DB: smokeline
+      POSTGRES_USER: smokeline
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smokeline}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smokeline -d smokeline"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  backend:
+    image: smokeline-backend:phase1
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://smokeline:smokeline@postgres:5432/smokeline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smokeline}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-0}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
+      SITE_DOMAIN: ${SITE_DOMAIN:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      MEDIA_STORE_ROOT: ${MEDIA_STORE_ROOT:-/data/media-store}
+      TEMP_ROOT: ${TEMP_ROOT:-/data/tmp}
+      BACKUP_ROOT: ${BACKUP_ROOT:-/data/backups}
+      AI_PROVIDER: ${AI_PROVIDER:-disabled}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_API_HOST: ${DASHSCOPE_API_HOST:-}
+      QWEN_TEXT_MODEL: ${QWEN_TEXT_MODEL:-qwen3.7-flash-2026-07-15}
+      QWEN_ASR_MODEL: ${QWEN_ASR_MODEL:-qwen-audio-3.0-asr-flash}
+      DAILY_LLM_CALL_LIMIT: ${DAILY_LLM_CALL_LIMIT:-100}
+      DAILY_ASR_SECONDS_LIMIT: ${DAILY_ASR_SECONDS_LIMIT:-600}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD_HASH_B64: ${ADMIN_PASSWORD_HASH_B64:-}
+      TMPDIR: ${TEMP_ROOT:-/data/tmp}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "app.scripts.start"]
+    volumes:
+      - media-store:/data/media-store
+      - backups:/data/backups
+    tmpfs:
+      - /data/tmp:rw,noexec,nosuid,size=256m,uid=10001,gid=10001,mode=1770
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/readyz', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+  nginx:
+    image: smokeline-nginx:phase1
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - media-store:/data/media-store:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+  media-store:
+  backups:

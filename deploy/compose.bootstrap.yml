@@ -1,0 +1,20 @@
+services:
+  nginx-bootstrap:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.bootstrap
+    image: smokeline-nginx-bootstrap:phase1
+    command: ["nginx", "-c", "/etc/nginx/nginx.bootstrap.conf", "-g", "daemon off;"]
+    ports:
+      - "80:8080"
+    volumes:
+      - ./nginx.bootstrap.conf:/etc/nginx/nginx.bootstrap.conf:ro
+      - ./acme:/var/www/acme:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "10002:10002"

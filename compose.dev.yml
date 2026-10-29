@@ -1,0 +1,21 @@
+services:
+  nginx:
+    ports:
+      - "127.0.0.1:8080:8080"
+  frontend:
+    image: node:24.15.0-alpine3.22
+    working_dir: /opt/smokeline/frontend
+    command: ["sh", "-c", "npm ci --ignore-scripts && npm run dev -- --host 0.0.0.0"]
+    environment:
+      VITE_API_PROXY_TARGET: http://nginx:8080
+    volumes:
+      - ./frontend:/opt/smokeline/frontend
+      - frontend-node-modules:/opt/smokeline/frontend/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      nginx:
+        condition: service_healthy
+
+volumes:
+  frontend-node-modules:

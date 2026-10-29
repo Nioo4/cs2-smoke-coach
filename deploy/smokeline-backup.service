@@ -1,0 +1,14 @@
+[Unit]
+Description=SmokeLine same-disk media and PostgreSQL backup
+Wants=network-online.target
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/smokeline
+UMask=0077
+NoNewPrivileges=true
+ExecStart=/usr/bin/docker compose --env-file /opt/smokeline/.env -p smokeline -f compose.yml -f compose.prod.yml exec -T backend python -m app.scripts.backup
+# The media lock may wait up to 120s, followed by bounded pg_dump and archive work.
+TimeoutStartSec=600s

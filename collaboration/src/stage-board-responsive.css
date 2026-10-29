@@ -1,0 +1,42 @@
+/* Dynamic board layout fixes kept separate from the compact base stylesheet. */
+.map-viewport { width: 100%; max-width: 100%; }
+.map-heading-actions { display: flex; align-items: center; gap: 8px; }
+.stage-workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr) 320px; }
+.stage-workspace.sidebar-collapsed .stage-panel { display: none; }
+.role-row { align-items: center; gap: 5px; }
+.role-pick { width: 38%; flex: none; justify-content: flex-start; }
+.role-name-edit { display: block; min-width: 0; flex: 1; color: var(--sub); font-size: 12px; line-height: 1.25; }
+.role-name-edit textarea { display: block; width: 100%; min-height: 36px; margin-top: 2px; padding: 4px; border: 1px solid var(--line); background: #fffdf6; color: var(--ink); font: 14px/1.3 "Segoe UI", "Microsoft YaHei", sans-serif; }
+.role-readonly { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; }
+.role-readonly i { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--ink); border-radius: 50%; background: var(--role-color); color: var(--ink); font-style: normal; font-weight: 800; }
+.readonly-copy { padding: 8px; border: 1px solid var(--line); background: #fffdf6; font-size: 14px; }
+.readonly-copy p { margin: 2px 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.readonly-copy p:last-child { margin-bottom: 0; }
+.observe-ray { marker-end: url(#observe-arrow); }
+.observe-ray.active-route { animation: observe-turn 0.9s ease-in-out infinite alternate; }
+.map-pin.utility.active { animation: utility-arrival 0.9s ease-out infinite alternate; }
+.stage-workspace.sidebar-collapsed .map-panel { min-width: 0; }
+.map-panel:fullscreen { display: flex; width: 100vw; height: 100vh; max-height: none; flex-direction: column; gap: 8px; overflow: auto; padding: 16px; border: 0; background: var(--paper); }
+.map-panel:fullscreen .map-viewport { flex: 0 0 auto; width: min(100%, calc(100vh - 300px)); max-width: 100%; aspect-ratio: 1; margin: auto; }
+.recovery-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.recovery-actions .button { min-height: 38px; }
+@keyframes observe-turn { from { opacity: .65; } to { opacity: 1; } }
+@keyframes utility-arrival { from { box-shadow: 0 0 0 0 #f2d88466; } to { box-shadow: 0 0 0 7px #f2d88400; } }
+
+@media (max-width: 1180px) {
+  .map-viewport { width: 100%; }
+  .stage-workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .stage-workspace.sidebar-collapsed .action-panel { grid-column: 1 / -1; }
+}
+
+@media (max-width: 700px) {
+  .map-viewport { width: 100%; }
+  .stage-workspace.sidebar-collapsed { grid-template-columns: 1fr; }
+  .stage-workspace.sidebar-collapsed .action-panel { display: block; }
+  .role-row { align-items: center; }
+  .role-pick { width: auto; flex: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .observe-ray.active-route, .map-pin.utility.active { animation: none; }
+}

@@ -1,0 +1,88 @@
+# Phase 5C recovery override.  Use only with an explicit
+# `docker compose -p smokeline-restore-<id> -f compose.yml -f compose.restore.yml`.
+# Every volume and the only host port are recovery-specific; no production
+# certificate, environment file, or public port is mounted here.
+services:
+  postgres:
+    labels:
+      com.smokeline.restore.project: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+    environment:
+      POSTGRES_DB: smokeline
+      POSTGRES_USER: smokeline
+      POSTGRES_PASSWORD: smokeline
+    volumes:
+      - smokeline-restore-postgres-data:/var/lib/postgresql/data
+    restart: "no"
+
+  backend:
+    labels:
+      com.smokeline.restore.project: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+    environment:
+      SMOKELINE_RESTORE_PROJECT: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://smokeline:smokeline@postgres:5432/smokeline
+      POSTGRES_PASSWORD: smokeline
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "0"
+      PUBLIC_BASE_URL: http://nginx:8080
+      SITE_DOMAIN: ""
+      ALLOWED_ORIGINS: http://nginx:8080
+      MEDIA_STORE_ROOT: /data/tmp/restore/media
+      TEMP_ROOT: /data/tmp
+      BACKUP_ROOT: /data/backups
+      AI_PROVIDER: disabled
+      DASHSCOPE_API_KEY: ""
+      DASHSCOPE_API_HOST: ""
+      DAILY_LLM_CALL_LIMIT: "100"
+      DAILY_ASR_SECONDS_LIMIT: "600"
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD_HASH_B64: JGFyZ29uMmlkJHY9MTkkbT02NTUzNix0PTMscD0yJFN3R3d6dEI3UnB4NkwwdnhydXR4SlEkeDdaYjJYbEFaajExMG1qbHF2bFJISzIvZVNNMW9aQTVsckNUVElZRlZJTQ==
+      TMPDIR: /data/tmp
+    volumes:
+      - smokeline-restore-media-store:/data/media-store
+      - smokeline-restore-media-store:/data/tmp/restore/media
+      - smokeline-restore-backups:/data/backups
+    restart: "no"
+
+  nginx:
+    labels:
+      com.smokeline.restore.project: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+    ports:
+      - "127.0.0.1:${RESTORE_PORT:-18080}:8080"
+    networks:
+      - default
+      - recovery-ingress
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+      - smokeline-restore-media-store:/data/media-store:ro
+    restart: "no"
+
+  test-runner:
+    image: smokeline-e2e-test-runner:latest
+    labels:
+      com.smokeline.restore.project: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+    command: ["npm", "run", "e2e", "--", "phase5c-restore.spec.ts", "--workers=1"]
+    environment:
+      BASE_URL: http://nginx:8080
+      TEST_AI_PROVIDER: disabled
+      SMOKELINE_RESTORE_PROJECT: "${RESTORE_PROJECT:?RESTORE_PROJECT is required}"
+    depends_on:
+      nginx:
+        condition: service_healthy
+    networks:
+      - default
+
+volumes:
+  smokeline-restore-postgres-data:
+  smokeline-restore-media-store:
+  smokeline-restore-backups:
+
+networks:
+  default:
+    internal: true
+  recovery-ingress:
+    # Docker suppresses host publication when every attached network is
+    # internal. Only Nginx joins this bridge; PostgreSQL and backend remain on
+    # the internal default network, and the host binding stays loopback-only.
+    driver: bridge
+    internal: false

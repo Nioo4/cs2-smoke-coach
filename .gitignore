@@ -1,0 +1,55 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+/admin.txt
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+pip-wheel-metadata/
+
+# Node and generated reports
+node_modules/
+dist/
+build/
+coverage/
+test-results/
+playwright-report/
+.vite/
+*.tsbuildinfo
+
+# Local runtime data
+/video/
+/mirage_map.*
+/label-map-mirage.*
+.workcache/
+.tmp/
+data/
+media-store/
+backups/
+deploy/acme/
+*.log
+*.dump
+*.sql.gz
+*.tar
+*.tar.gz
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

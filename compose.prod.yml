@@ -1,0 +1,29 @@
+services:
+  postgres:
+    restart: unless-stopped
+  backend:
+    environment:
+      APP_ENV: production
+    restart: unless-stopped
+  nginx:
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?SITE_DOMAIN is required}
+    command: ["sh", "-c", "envsubst '$${SITE_DOMAIN}' < /etc/nginx/nginx.prod.conf > /tmp/nginx.conf && exec nginx -c /tmp/nginx.conf -g 'daemon off;'"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --fail --silent --show-error --max-time 3 --resolve \"$${SITE_DOMAIN}:8443:127.0.0.1\" https://$${SITE_DOMAIN}:8443/api/v1/healthz >/dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "80:8080"
+      - "443:8443"
+    volumes:
+      - ./deploy/nginx.prod.conf:/etc/nginx/nginx.prod.conf:ro
+      - media-store:/data/media-store:ro
+      - ./deploy/acme:/var/www/acme:ro
+      - /etc/letsencrypt/live/smokeline:/etc/letsencrypt/live/smokeline:ro
+      - /etc/letsencrypt/archive/smokeline:/etc/letsencrypt/archive/smokeline:ro
