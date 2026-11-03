@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 _PROJECT_RE = re.compile(r"^smokeline-restore-[a-z0-9][a-z0-9-]{0,40}$")
 _COMPOSE_PUBLIC_PORT_RE = re.compile(
@@ -379,8 +380,11 @@ def restore_media_archive(group: Path, destination: Path) -> None:
                     pass
 
 
-def restore_database(group: Path, database_url: str) -> None:
-    parsed = make_url(database_url)
+def validate_restore_database_url(database_url: str):
+    try:
+        parsed = make_url(database_url)
+    except (ValueError, ArgumentError):
+        raise RestoreError("RESTORE_DATABASE_SCOPE_REJECTED") from None
     if (
         parsed.drivername not in {"postgresql", "postgresql+psycopg"}
         or parsed.host != "postgres"
@@ -390,6 +394,54 @@ def restore_database(group: Path, database_url: str) -> None:
         or not parsed.password
     ):
         raise RestoreError("RESTORE_DATABASE_SCOPE_REJECTED")
+    return parsed
+
+
+def backup_contains_formal_tables(group: Path) -> bool:
+    """Read the custom dump TOC, never execute it or print its contents."""
+    from app.services.tactics_maintenance import FORMAL_TABLES
+    manifest = validate_backup_group(group)
+    try:
+        result = subprocess.run(["pg_restore", "--list",
+            str(group / manifest["database"]["path"])], check=True, stdin=subprocess.DEVNULL,
+            capture_output=True, timeout=30)
+        if len(result.stdout) > 1024 * 1024:
+            raise RestoreError("RESTORE_TOC_TOO_LARGE")
+        text = result.stdout.decode("utf-8")
+    except (OSError, UnicodeError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        raise RestoreError("RESTORE_TOC_REJECTED") from None
+    declared, data_tables = set(), set()
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith(";"):
+            continue
+        try:
+            entry, raw = line.split(";", 1)
+            parts = raw.split()
+            if not entry.strip().isdigit() or len(parts) < 4 or not (
+                parts[0].isdigit() and parts[1].isdigit()
+            ):
+                raise ValueError
+            obj = parts[2:]
+        except ValueError:
+            raise RestoreError("RESTORE_TOC_REJECTED") from None
+        if obj[0] == "DATABASE" or (len(obj) >= 3 and obj[0] in {"COMMENT", "ACL"}
+                                    and obj[1:3] == ["-", "DATABASE"]):
+            raise RestoreError("RESTORE_DATABASE_METADATA_IN_DUMP_REJECTED")
+        if obj[0] == "TABLE" and len(obj) >= 3 and obj[1] == "public":
+            declared.add(obj[2])
+        elif len(obj) >= 4 and obj[:3] == ["TABLE", "DATA", "public"]:
+            data_tables.add(obj[3])
+    audit = "tactic_audit_events"
+    seen = (declared | data_tables) & (FORMAL_TABLES | {audit})
+    if seen and (not FORMAL_TABLES <= declared or (
+        audit in data_tables and audit not in declared
+    )):
+        raise RestoreError("RESTORE_FORMAL_SCHEMA_INCOMPLETE")
+    return bool(seen)
+
+
+def restore_database(group: Path, database_url: str) -> None:
+    parsed = validate_restore_database_url(database_url)
     group = group.resolve(strict=True)
     manifest = validate_backup_group(group)
     password = parsed.password
@@ -431,6 +483,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--compose-file", required=True, type=Path)
     parser.add_argument("--port", required=True, type=int)
     parser.add_argument("--database-url")
+    parser.add_argument("--tactics-run-id")
     parser.add_argument("--execute", action="store_true")
     return parser
 
@@ -450,8 +503,41 @@ def main(argv: list[str] | None = None) -> int:
         if args.execute:
             if not args.database_url:
                 raise RestoreError("RESTORE_DATABASE_URL_REQUIRED")
+            validate_restore_database_url(args.database_url)
+            formal_backup = backup_contains_formal_tables(args.backup)
+            if formal_backup:
+                if not args.tactics_run_id:
+                    raise RestoreError("RESTORE_TACTICS_RUN_REQUIRED")
+                from app.scripts.tactics_maintenance import run_async
+                from app.services.tactics_maintenance import (
+                    MaintenanceError,
+                    validate_empty_restore_target,
+                )
+                try:
+                    run_async(validate_empty_restore_target(args.database_url, args.project,
+                                                            args.tactics_run_id))
+                except MaintenanceError:
+                    raise RestoreError("RESTORE_TACTICS_PREFLIGHT_REJECTED") from None
             restore_media_archive(args.backup, args.media_root)
             restore_database(args.backup, args.database_url)
+            from app.scripts.tactics_maintenance import run_async
+            from app.services.tactics_maintenance import MaintenanceError, prepare_restore
+
+            try:
+                preparation = run_async(prepare_restore(args.database_url, args.project,
+                    args.tactics_run_id, execute=True, confirm_database="smokeline",
+                    container=True, legacy_ok=True))
+            except MaintenanceError as exc:
+                if "REMAINS_CLOSED" in str(exc):
+                    print("RESTORE_DATABASE_REMAINS_CLOSED: inspect ONLY this new target's "
+                          "datallowconn and COMMENT project/run/prepared from postgres; stop old "
+                          "API/Node. Operator alone may explicitly ALTER DATABASE smokeline "
+                          "ALLOW_CONNECTIONS true for a guarded retry. Never reopen old/production "
+                          "targets automatically.", file=sys.stderr)
+                raise RestoreError("RESTORE_TACTICS_PREPARATION_FAILED") from None
+            if preparation.get("formal"):
+                print("RESTORE_COMPLETE_DATABASE_CLOSED")
+                return 0
     except (OSError, RestoreError, ValueError):
         print("RESTORE_REJECTED", file=sys.stderr)
         return 2

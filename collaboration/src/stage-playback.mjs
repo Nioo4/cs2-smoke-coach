@@ -1,5 +1,17 @@
 export const DEFAULT_GROUP_DURATION_MS = 3_000;
 
+export function advancePlaybackClock(play, now) {
+  if (!play.paused) {
+    play.elapsed += Math.max(0, now - play.startedAt);
+    play.startedAt = now;
+  }
+  return play.elapsed;
+}
+
+export function canPausePlayback(play) {
+  return Boolean(play && (!play.done || play.waiting));
+}
+
 export function groupStageActions(stage) {
   const groups = [];
   for (const action of stage.actions) {

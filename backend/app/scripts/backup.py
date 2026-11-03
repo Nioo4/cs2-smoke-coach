@@ -449,19 +449,45 @@ def retain_backups(backup_root: Path, *, now: datetime | None = None) -> list[st
         if backup_root.exists()
         else []
     )
-    groups.sort(key=lambda path: path.stat().st_mtime, reverse=True)
-    retained = groups[:RETENTION_COUNT]
-    retained_names = {path.name for path in retained}
-    cutoff = current.timestamp() - RETENTION_AGE.total_seconds()
-    for path in groups[RETENTION_COUNT:]:
+    dated = []
+    for path in groups:
         try:
-            too_old = path.stat().st_mtime < cutoff
-        except OSError as exc:
-            raise BackupError("backup retention stat failed") from exc
-        if too_old or len(groups) > RETENTION_COUNT:
+            manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+            created = datetime.fromisoformat(manifest["created_at"])
+            if created.tzinfo is None or created.utcoffset() != timedelta(0) or created > current:
+                raise ValueError
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            # Never infer a deletion deadline from a corrupt timestamp or refreshed directory mtime.
+            raise BackupError("backup retention timestamp invalid") from exc
+        dated.append((created, path))
+    dated.sort(key=lambda item: (item[0], item[1].name), reverse=True)
+    retained = [path for created, path in dated if created > current - RETENTION_AGE][
+        :RETENTION_COUNT]
+    retained_names = {path.name for path in retained}
+    latest = backup_root / "latest"
+    if latest.is_symlink():
+        raise BackupError("unsafe backup latest pointer")
+    if latest.exists():
+        try:
+            pointer = latest.read_text(encoding="ascii").strip()
+        except (OSError, UnicodeError) as exc:
+            raise BackupError("backup latest pointer invalid") from exc
+        if pointer not in retained_names:
+            if retained:
+                _write_atomic(latest, (retained[0].name + "\n").encode("ascii"))
+            else:
+                latest.unlink()
+                _fsync_directory(backup_root)
+    for path in groups:
+        if path.name not in retained_names:
             try:
+                resolved = path.resolve(strict=True)
+                root_resolved = backup_root.resolve(strict=True)
+                resolved.relative_to(root_resolved)
+                if path.is_symlink() or resolved == root_resolved:
+                    raise BackupError("unsafe backup retention target")
                 shutil.rmtree(path)
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 raise BackupError("backup retention cleanup failed") from exc
     return sorted(retained_names)
 

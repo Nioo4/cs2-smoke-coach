@@ -40,6 +40,51 @@ function notFoundPayload(conversationId: string) {
 }
 
 describe('Phase 4 public search surface', () => {
+  it.each(['route-list', 'detail'])('removes the previous %s and video when a new query fails, then renders only the next successful result', async (previousKind) => {
+    const bodies: Array<{ text: string; conversation_id: string | null }> = [];
+    const result = (slug: string, name: string, conversation: string) => ({
+      type: 'route_matches', conversation_id: conversation, source: 'local_curated',
+      intent: { map: 'mirage', grenade: 'smoke', target_slug: slug, origin_slug: null }, notices: [],
+      routes: [{ target: { slug, name_zh: name }, origin: { slug: 't-spawn', name_zh: '匪家' },
+        lineup: { id: slug, is_default: true, variant_hint: '默认路线', primary_video: { url: `/media/${slug}.mp4`, poster_url: `/media/${slug}.webp`, duration_ms: 1000 } } }],
+    });
+    installFetch((input, init) => {
+      if (String(input).endsWith('/maps/mirage')) return response(mapPayload);
+      const body = JSON.parse(String(init?.body)) as typeof bodies[number]; bodies.push(body);
+      if (bodies.length === 2) return response({ error: { code: 'INTENT_UNAVAILABLE', message: '意图解析服务暂不可用，请使用明确的目标名称。' } }, 503);
+      if (bodies.length === 1 && previousKind === 'detail') {
+        const matched = result('ct', '警家', 'conversation-1');
+        const route = matched.routes[0];
+        return response({ ...matched, type: 'match', lineup: { ...route.lineup, target: route.target, origin: route.origin, source: 'local_curated',
+          steps: { setup: '站位', aim: '瞄点', throw: '投掷', result: '封烟' }, check_info: { last_checked_at: null, game_version_note: null }, other_lineups: [] } });
+      }
+      return response(result(bodies.length === 1 ? 'ct' : 'vip', bodies.length === 1 ? '警家' : 'VIP', `conversation-${bodies.length}`));
+    });
+    renderApp();
+    const input = await screen.findByRole('textbox', { name: '搜索路线' });
+    const search = (text: string) => { fireEvent.change(input, { target: { value: text } }); fireEvent.submit(input.closest('form')!); };
+    search('警家烟怎么丢');
+    const previousHeading = previousKind === 'detail' ? '匪家 → 警家' : '警家 · 可用起点';
+    await screen.findByRole('heading', { name: previousHeading });
+    expect(document.querySelector('video')).toHaveAttribute('src', '/media/ct.mp4');
+    search('从匪家封不存在的点');
+    expect(screen.queryByRole('heading', { name: previousHeading })).not.toBeInTheDocument();
+    expect(document.querySelector('video')).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('意图解析服务暂不可用，请使用明确的目标名称。');
+    expect(input).toHaveValue('从匪家封不存在的点');
+    expect(screen.queryByRole('heading', { name: previousHeading })).not.toBeInTheDocument();
+    expect(document.querySelector('video')).not.toBeInTheDocument();
+    search('VIP烟');
+    await screen.findByRole('heading', { name: 'VIP · 可用起点' });
+    expect(document.querySelector('video')).toHaveAttribute('src', '/media/vip.mp4');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(bodies.map(body => body.conversation_id)).toEqual([null, 'conversation-1', 'conversation-1']);
+    search('再次查VIP烟');
+    await waitFor(() => expect(bodies).toHaveLength(4));
+    await screen.findByRole('heading', { name: 'VIP · 可用起点' });
+    expect(document.querySelectorAll('video')).toHaveLength(1);
+    expect(bodies[3].conversation_id).toBe('conversation-3');
+  });
   beforeEach(() => {
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,

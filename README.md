@@ -1,98 +1,94 @@
-# SmokeLine / CS2 Workshop
+# CS2 Workshop
 
-面向中文 CS2 玩家的烟雾教学与战术演示工具：输入想封的位置，查找已收录的教学视频；在地图上编排角色、动作与阶段，动态演示一套战术。
+面向中文玩家的 CS2 Mirage 烟雾教学与战术协作工具。
 
-- **烟雾教学**：支持起点＋目标、只说目标、只说起点等查询，查看路线说明和视频。目前以 Mirage 为主。
-- **动态战术板**：编排阶段、角色站位、移动路线、道具目标和文字说明，支持自动演示、逐阶段演示与多人协作。
-- **内容管理**：管理员维护教学路线、主视频和地图目标位置。
-- **技术栈**：React、TypeScript、FastAPI、PostgreSQL；战术协作使用 Node.js、WebSocket 和 Yjs。
+- 烟雾教学：按目标、起点检索已收录路线，地图点选，查看步骤与主视频。
+- 个人战术本：创建战术，编排阶段、角色与地图动作，查看历史、归档与恢复。
+- 队伍协作：共享战术本、成员角色、邀请与实时协作。
+- 演示与分享：演示已保存版本，发布固定版本的只读分享；允许复制时可建立独立副本。
+- 账户与内容管理：个人资料、密码与恢复码；教学后台独立认证，管理点位、路线和媒体。
 
-当前公开版本的战术板是独立本地原型，使用临时参与票据进入，不包含正式个人账号、队伍权限和公开分享。动画用于说明战术流程，不模拟真实游戏弹道。
+## 本地启动
 
-## 准备环境
+需要 Git、Docker Desktop 的 Linux 容器环境及 Docker Compose v2。Docker 构建会下载基础镜像、npm 与 Python 依赖，需要可用网络；完整容器启动不要求宿主机另装 Node/Python。
 
-安装 Git、Docker Desktop（Linux 容器模式）。运行战术板还需要 Node.js 24（含 npm）。以下命令使用 Windows PowerShell。
+首次获取项目：
 
 ```powershell
 git clone https://github.com/Nioo4/cs2-smoke-coach.git
 cd cs2-smoke-coach
 ```
 
-## 启动烟雾教学
-
-在仓库根目录执行；如果已有自己的 `.env`，保留它，不要重复复制覆盖。
+在仓库根目录执行以下 PowerShell 命令：
 
 ```powershell
-Copy-Item .env.example .env
-docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml up -d --build postgres backend nginx
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml build backend collaboration
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml build --build-arg BUILD_MODE=production nginx
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml up -d --no-build
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml ps
 ```
 
-首次启动需要下载镜像、安装依赖和初始化数据库。完成后打开 [教学首页](http://127.0.0.1:8080)。
-
-### 如何使用
-
-1. 输入“我在 Mirage 匪家，想封警家烟”或“警家烟怎么丢”。
-2. 查看匹配的起点与目标，打开教学并手动播放视频。
-3. 也可以从地图选择目标位置，再查看对应路线。
-
-仓库不附带教学视频和生产数据，首次启动可能没有可播放路线，需要自行录入素材。默认关闭模型与语音服务；文字目录检索可独立使用。语音和模型意图解析需要在 `.env` 中配置供应商凭据后重建后端。当前版本不提供外部视频平台搜索。
-
-### 录入教学素材
-
-生成管理员密码配置，按提示输入密码：
+打开 [CS2 Workshop 本地页面](http://127.0.0.1:18220)。等待数据库、后端和网页服务就绪；可检查：
 
 ```powershell
-docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml run --rm --no-deps backend python -m app.scripts.create_admin_hash
+Invoke-WebRequest http://127.0.0.1:18220/api/v1/readyz
 ```
 
-把输出的 `ADMIN_PASSWORD_HASH_B64=...` 替换到 `.env` 的同名配置，保留 `ADMIN_USERNAME=admin`，然后运行：
+这是只监听本机的专用配置，数据库密码、服务内部通信密钥和后台哈希均是公开本地夹具，不能用于公网。后端使用 `APP_ENV=test`，前端以上述命令构建为 production 模式；这不等于生产部署。不要将此文件与 `compose.yml` 或生产配置合并。
+
+配置固定使用18220端口、`smokeline-tactics-t5-local-*`命名卷/网络及10.244.98.0/24、10.244.99.0/24子网。确认它们未被已有实例占用；仅改Compose项目名不能隔离这些固定资源。已有同配置服务时不要再次进行“全新初始化”。
+
+## 使用
+
+1. 进入“账户”注册自己的用户名、昵称及12–128字符密码。保存首次显示的恢复码，确认保存后继续；恢复码不会再次显示。
+2. 在“个人战术本”创建战术，打开编辑器，配置阶段、角色和动作。留意保存与连接状态；演示入口读取已确认版本。
+3. 在“我的队伍”创建队伍、邀请成员并按需要分配权限。新加入成员默认只读；队伍成员与地图角色是不同概念。
+4. 在具体战术中打开发布分享管理。分享读取固定发布版本，草稿后续修改不会自动覆盖；更新发布和撤销需要明确操作。
+5. 教学首页只返回自己目录中已发布的教学。首次空数据库没有预置教学或示例视频；要建立教学目录，使用独立教学后台配置自己的点位、路线和授权视频。
+
+本地默认关闭模型与语音识别供应商：明确名称检索按真实目录处理，模糊意图和录音转写不保证可用，不会用假结果补齐。录音需浏览器麦克风授权。此启动配置不包含外部供应商接入步骤。
+
+### 可选：设置自己的教学管理员密码
+
+普通战术账号自行注册，不需要教学管理员密码。需要使用 `/admin` 时，可在完成镜像构建后生成自己的密码哈希：
 
 ```powershell
-docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml up -d backend
+docker run --rm -it --network none --read-only --tmpfs /tmp smokeline-backend:tactics-t5-local python -m app.scripts.create_admin_hash
 ```
 
-打开 [内容管理](http://127.0.0.1:8080/admin)，使用 `admin` 和刚设置的密码登录。创建起点与目标、填写路线、上传一个主视频，待处理完成后发布；同一起点与目标可以设置默认路线。
+在隐藏提示中输入并确认密码。输出的 `ADMIN_PASSWORD_HASH_B64` 值只保存在自己控制的本地配置，不发布。创建被Git忽略的 `.workcache/admin.local.yml`，填写自己的非秘密管理员名和生成的哈希：
 
-停止服务并保留数据：
+```yaml
+services:
+  backend:
+    environment:
+      ADMIN_USERNAME: local-admin
+      ADMIN_PASSWORD_HASH_B64: "替换为刚生成的哈希值，不含变量名及等号"
+```
+
+然后只重新创建后端，保留数据库与媒体：
 
 ```powershell
-docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml stop
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml -f .workcache/admin.local.yml up -d --no-build --no-deps backend
 ```
 
-## 启动动态战术板
+后台使用上述管理员名与自己输入的密码登录；它与战术账号独立。公开配置内的夹具哈希不提供可用的个人密码说明。不要将真实密码、私有覆盖文件或恢复码提交到Git。
 
-从仓库根目录进入 `collaboration`，执行：
+## 停止与再次启动
+
+停止服务，保留数据：
 
 ```powershell
-cd collaboration
-npm ci
-docker compose -f compose.t0.yml up -d --wait postgres
-npm run build
-$env:TACTICS_T0_MODE = 'local'
-$env:DATABASE_URL = 'postgresql://t0_test:t0_only_local@127.0.0.1:55432/t0_tactics'
-npm start
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml stop
 ```
 
-保持终端运行，打开 [动态战术板](http://127.0.0.1:4173/stage-board.html)。另开一个 PowerShell 窗口，获取本地参与票据：
+已有卷初始化后，按依赖顺序启动四个常驻服务，跳过一次性 `spool-init`，避免对非空临时卷重复执行首次初始化：
 
 ```powershell
-$tickets = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:4173/__t0/test-tickets -Headers @{ Origin = 'http://127.0.0.1:4173' } -ContentType 'application/json' -Body '{"document_id":"mirage-stage-prototype"}'
-$tickets.participants
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml up -d --no-build --no-deps --wait postgres
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml up -d --no-build --no-deps --wait backend
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml up -d --no-build --no-deps --wait collaboration
+docker compose --env-file deploy/tactics.empty.env -f compose.tactics.local.yml up -d --no-build --no-deps --wait nginx
 ```
 
-### 如何使用
-
-1. 把输出中的一份参与者票据填入页面并连接。票据五分钟内有效、只能使用一次；失效后重新获取。
-2. 创建或选择阶段，添加角色，在地图上设置站位。
-3. 添加移动、等待、观察、道具或文字动作，在地图上标记位置，填写说明，设置接续或同时执行。
-4. 使用自动演示播放整套流程，或逐阶段演示并讲解；阶段不要求填写精确时间戳。
-5. 测试多人协作时，在另一个标签页打开同一地址，使用另一份票据连接，观察彼此的修改。
-6. 等待页面显示已保存后离开。遇到未确认修改时，先导出副本，再按页面提示处理；导出不等于保存成功。
-
-停止战术板：在运行 `npm start` 的窗口按 `Ctrl+C`，再在 `collaboration` 目录执行：
-
-```powershell
-docker compose -f compose.t0.yml stop postgres
-```
-
-以上为本机运行方式，数据卷会保留。示例数据库口令仅供本地使用；不要公开 `.env`、管理员密码或参与票据。项目非 Valve 官方产品，使用视频及地图素材时请确保具备相应使用权限。
+若使用了管理员私有覆盖文件，以上每条命令均在基础 `-f` 后追加 `-f .workcache/admin.local.yml`，避免后端配置被基础夹具替换。不要用 `down -v` 作为重启方式，它会删除数据卷。

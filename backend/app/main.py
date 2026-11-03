@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.admin import router as admin_router
+from app.api.features import router as features_router
 from app.api.public import router as public_router
 from app.core.config import get_settings
 from app.core.errors import AppError, error_body, install_error_handlers
@@ -115,11 +118,25 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         return response
 
 
+@asynccontextmanager
+async def lifespan(_app):
+    if not settings.tactics_enabled:
+        yield
+        return
+    from app.services.tactics_history import history_worker, stop_worker
+    worker = asyncio.create_task(history_worker(settings))
+    try:
+        yield
+    finally:
+        await stop_worker(worker)
+
+
 app = FastAPI(
     title="SmokeLine API",
     version="0.1.0",
     docs_url=None if settings.app_env == "production" else "/docs",
     openapi_url=None if settings.app_env == "production" else "/openapi.json",
+    lifespan=lifespan,
 )
 install_error_handlers(app)
 
@@ -134,6 +151,23 @@ if settings.app_env != "production":
 app.add_middleware(RequestContextMiddleware)
 app.include_router(public_router)
 app.include_router(admin_router)
+app.include_router(features_router)
+if settings.tactics_enabled:
+    from app.api.tactics import router as tactics_router
+    from app.api.tactics_auth import router as tactics_auth_router
+    from app.api.tactics_collaboration import internal_router
+    from app.api.tactics_collaboration import router as collaboration_router
+    from app.api.tactics_shares import public_router as share_public_router
+    from app.api.tactics_shares import router as shares_router
+    from app.api.tactics_teams import router as teams_router
+
+    app.include_router(tactics_auth_router)
+    app.include_router(tactics_router)
+    app.include_router(collaboration_router)
+    app.include_router(internal_router)
+    app.include_router(teams_router)
+    app.include_router(shares_router)
+    app.include_router(share_public_router)
 
 
 @app.get("/api/v1/healthz", include_in_schema=True)

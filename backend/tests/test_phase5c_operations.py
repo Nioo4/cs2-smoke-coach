@@ -561,6 +561,99 @@ def test_retention_keeps_seven_complete_groups_and_ignores_partial(tmp_path: Pat
     assert len([path for path in tmp_path.iterdir() if backup._complete_group(path)]) == 7
 
 
+def test_retention_deletes_old_groups_even_below_seven_and_updates_latest(tmp_path: Path):
+    expired = _make_group(tmp_path, "20260910-010111")
+    fresh = _make_group(tmp_path, "20260910-010112")
+    now = backup._utc_now()
+    files = json.loads((expired / "manifest.json").read_text(encoding="utf-8"))["media_files"]
+    backup._write_manifest(expired, now - timedelta(days=8), files)
+    # A directory copy/mtime refresh must not extend the manifest retention deadline.
+    os.utime(expired, None)
+    (tmp_path / "latest").write_text(expired.name + "\n", encoding="ascii")
+    assert backup.retain_backups(tmp_path, now=now) == [fresh.name]
+    assert not expired.exists() and (tmp_path / "latest").read_text().strip() == fresh.name
+    files = json.loads((fresh / "manifest.json").read_text(encoding="utf-8"))["media_files"]
+    backup._write_manifest(fresh, now - timedelta(days=8), files)
+    assert backup.retain_backups(tmp_path, now=now) == []
+    assert not fresh.exists() and not (tmp_path / "latest").exists()
+
+
+@pytest.mark.parametrize(
+    "timestamp", ["bad-time", "2026-10-01T00:00:00", "2026-10-01T00:00:00+08:00"])
+def test_retention_bad_timestamp_fails_without_deleting(tmp_path: Path, timestamp):
+    group = _make_group(tmp_path, "20260910-010113")
+    manifest_path = group / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["created_at"] = timestamp
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    checksum_path = group / "checksums.sha256"
+    lines = checksum_path.read_text().splitlines()
+    checksum_path.write_text("\n".join(
+        (f"{backup._sha256(manifest_path)}  manifest.json"
+         if line.endswith("  manifest.json") else line)
+        for line in lines) + "\n", encoding="ascii")
+    with pytest.raises(backup.BackupError, match="timestamp invalid"):
+        backup.retain_backups(tmp_path)
+    assert group.exists()
+
+
+def test_restore_toc_categories_are_exact_and_formal_data_only_is_rejected(tmp_path, monkeypatch):
+    from app.services.tactics_maintenance import FORMAL_TABLES
+    group = _make_group(tmp_path, "20260910-010114")
+    def listing(text):
+        monkeypatch.setattr(restore.subprocess, "run", lambda command, **_kwargs: (
+            SimpleNamespace(stdout=text.encode()) if command[:2] == ["pg_restore", "--list"]
+            else pytest.fail("read-only TOC validation must not run a restore")))
+    listing("1; 1259 123 TABLE public targets smokeline\n"
+            "2; 0 123 TABLE DATA public targets smokeline\n"
+            "3; 0 0 COMMENT public TABLE targets smokeline\n")
+    assert restore.backup_contains_formal_tables(group) is False
+    listing("\n".join(f"{index}; 1259 123 TABLE public {name} smokeline"
+                       for index, name in enumerate(sorted(FORMAL_TABLES), 1)))
+    assert restore.backup_contains_formal_tables(group) is True
+    listing("1; 0 123 TABLE DATA public users smokeline\n")
+    with pytest.raises(restore.RestoreError, match="SCHEMA_INCOMPLETE"):
+        restore.backup_contains_formal_tables(group)
+    listing("1; 0 0 COMMENT - DATABASE smokeline smokeline\n")
+    with pytest.raises(restore.RestoreError, match="METADATA_IN_DUMP_REJECTED"):
+        restore.backup_contains_formal_tables(group)
+
+
+@pytest.mark.parametrize("mode", ["missing-run", "wrong-run", "legacy", "formal"])
+def test_restore_main_preflight_happens_before_all_writes(tmp_path, monkeypatch, capsys, mode):
+    from app.services import tactics_maintenance as maintenance
+    group = _make_group(tmp_path, "20260910-010115")
+    monkeypatch.setattr(restore, "validate_restore_scope", lambda **_kwargs: None)
+    monkeypatch.setattr(restore, "backup_contains_formal_tables", lambda _group: mode != "legacy")
+    writes = []
+    monkeypatch.setattr(restore, "restore_media_archive", lambda *_args: writes.append("media"))
+    monkeypatch.setattr(restore, "restore_database", lambda *_args: writes.append("database"))
+    async def preflight(*_args, **_kwargs):
+        assert writes == []
+        if mode == "wrong-run":
+            raise maintenance.MaintenanceError("MAINTENANCE_DATABASE_MARKER_REJECTED")
+    async def preparation(*_args, **_kwargs):
+        assert writes == ["media", "database"]
+        assert _kwargs["legacy_ok"] is True
+        return {"formal": mode == "formal"}
+    monkeypatch.setattr(maintenance, "validate_empty_restore_target", preflight)
+    monkeypatch.setattr(maintenance, "prepare_restore", preparation)
+    args = ["--backup", str(group), "--project", "smokeline-restore-unit",
+            "--restore-root", str(tmp_path / "target"),
+            "--media-root", str(tmp_path / "target/media"),
+            "--compose-file", str(tmp_path / "compose.restore.yml"), "--port", "18080",
+            "--database-url", "postgresql+psycopg://smokeline:local-only@postgres:5432/smokeline",
+            "--execute"]
+    if mode != "missing-run":
+        args.extend(["--tactics-run-id", "00000000-0000-4000-8000-000000000001"])
+    result = restore.main(args)
+    if mode in {"missing-run", "wrong-run"}:
+        assert result == 2 and writes == []
+    else:
+        assert result == 0 and writes == ["media", "database"]
+        assert ("RESTORE_COMPLETE_DATABASE_CLOSED" in capsys.readouterr().out) == (mode == "formal")
+
+
 def test_pg_dump_uses_custom_format_and_does_not_log_password(monkeypatch, tmp_path: Path) -> None:
     destination = tmp_path / "db" / "dump"
     calls: list[list[str]] = []

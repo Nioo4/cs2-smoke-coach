@@ -395,12 +395,12 @@ function stageFieldValue(source, oldFields, recovery, baselineDoc) {
   throw new CollaborationError('invalid_stage_field_source');
 }
 
-function assertStageTextUpdateScope(candidateDoc, baselineDoc, update, structure) {
+export function assertStageTextUpdateScope(candidateDoc, baselineDoc, update, structure, keys = expectedStageTextFields(structure)) {
   const root = baselineDoc.getMap('fields');
-  const permittedTypes = new Set(expectedStageTextFields(structure).map((key) => typeIdentity(root.get(key))));
+  const permittedTypes = new Set(keys.map((key) => typeIdentity(root.get(key))));
   const deleteRanges = new Map();
   const priorDeletes = Y.decodeUpdate(Y.encodeStateAsUpdate(baselineDoc)).ds.clients;
-  for (const type of expectedStageTextFields(structure).map((key) => root.get(key))) {
+  for (const type of keys.map((key) => root.get(key))) {
     for (const structs of baselineDoc.store.clients.values()) {
       for (const struct of structs) {
         if (struct.parent === type) {

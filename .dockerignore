@@ -1,4 +1,8 @@
 .git
+admin.txt
+**/admin.txt
+mirage_map/
+label-map/
 .env
 .env.*
 !.env.example

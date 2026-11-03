@@ -739,7 +739,7 @@ describe('admin workspace', () => {
     fireEvent.change(screen.getByLabelText('用户名'), { target: { value: 'admin' } });
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'test-password' } });
     fireEvent.click(screen.getByRole('button', { name: '登录' }));
-    await screen.findByRole('heading', { name: '把一条路线教清楚。' });
+    await screen.findByRole('heading', { name: '教学内容管理' });
     await screen.findByRole('tablist', { name: '管理标签' });
   }
 

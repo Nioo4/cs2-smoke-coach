@@ -1,3 +1,4 @@
+import WorkshopHeader from '../components/WorkshopHeader';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -399,6 +400,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!drawer) return;
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         closeDrawer();
@@ -529,6 +531,9 @@ export default function HomePage() {
     setFailedLineupIds(new Set());
     setVoiceError('');
     const { sequence, signal } = beginRequest();
+    setDrawer(null);
+    setSelectedTarget(null);
+    previousRoutes.current = null;
     pauseVideo(videoRef.current);
     setDrawerError('');
     setLoading(true);
@@ -583,6 +588,7 @@ export default function HomePage() {
   }
 
   function handleDrawerKeyDown(event: KeyboardEvent<HTMLElement>): void {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       closeDrawer();
@@ -627,24 +633,80 @@ export default function HomePage() {
   const voiceDisabled = !voiceSupported || microphoneDenied || loading
     || voiceState === 'requesting_permission' || voiceState === 'transcribing';
 
+  const drawerPanel = (
+drawer && (
+        <section
+          ref={drawerRef}
+          className={`route-drawer${mobileDrawer ? ' drawer-mobile' : ' drawer-desktop'}`}
+          role={mobileDrawer ? 'dialog' : 'region'}
+          aria-modal={mobileDrawer ? 'true' : undefined}
+          aria-labelledby="drawer-title"
+          tabIndex={-1}
+          onKeyDown={handleDrawerKeyDown}
+        >
+          <div className="drawer-header">
+            <div>
+              <p className="eyebrow">ROUTE NOTES</p>
+              <h2 id="drawer-title" ref={titleRef} tabIndex={-1}>
+                {drawer.kind === 'route-list' ? drawer.title :
+                    drawer.kind === 'clarification' ? '选择目标位置' :
+                    drawer.kind === 'detail' ? `${drawer.detail.origin.name_zh} → ${drawer.detail.target.name_zh}` : '检索结果'}
+              </h2>
+            </div>
+            <button className="icon-button" type="button" aria-label="关闭详情" onClick={closeDrawer}>×</button>
+          </div>
+          {drawerError && <p className="inline-error drawer-error" role="alert">{drawerError}</p>}
+
+          {drawer.kind === 'route-list' && (
+            <SelectionPanel key={routeListNonce} routes={drawer.routes} notices={drawer.notices} loading={loading} onOpen={(id) => void openDetail(id)} />
+          )}
+          {drawer.kind === 'clarification' && (
+            <ClarificationCard
+              result={drawer.result}
+              onSelect={(value) => void selectClarification(value)}
+              loading={loading}
+              onEdit={closeDrawerToInput}
+            />
+          )}
+          {drawer.kind === 'notice' && <ErrorNotice result={drawer.result} onEdit={closeDrawerToInput} />}
+          {drawer.kind === 'detail' && (
+            <VideoResultPanel
+              key={`${drawer.detail.id}:${drawer.renderKey}`}
+              detail={drawer.detail}
+              notices={drawer.notices}
+              showBack={drawer.fromList}
+              loading={loading}
+              videoRef={videoRef}
+              failedLineupIds={failedLineupIds}
+              onMediaFailed={handleMediaFailed}
+              onBack={() => {
+                releaseVideo(videoRef.current);
+                if (previousRoutes.current) {
+                  setDrawer({ kind: 'route-list', routes: previousRoutes.current, notices: previousListNotices.current, title: previousListTitle.current });
+                  window.requestAnimationFrame(() => {
+                    const body = drawerRef.current?.querySelector('.drawer-body');
+                    if (body) body.scrollTop = previousListScrollTop.current;
+                  });
+                } else closeDrawer();
+              }}
+              onOpenOther={(id) => void openDetail(id)}
+              onQuickSwitch={() => quickSwitch(drawer.detail)}
+            />
+          )}
+        </section>
+      )
+  );
+
   return (
-    <div className={`site-frame${drawer && !mobileDrawer ? ' has-drawer' : ''}`}>
+    <div className={`site-frame workshop-public`}>
       <div id="public-surface" className="public-surface">
-      <header className="topbar">
-        <Link className="brand" to="/" aria-label="SmokeLine 首页">
-          <span className="brand-mark" aria-hidden="true">SL</span>
-          <span>SmokeLine</span>
-        </Link>
-        <span className="scope-pill">MIRAGE · 烟雾</span>
-        <span className="route-count"><strong>{routeCountLabel}</strong></span>
-        <Link className="topbar-link" to="/admin">内容管理</Link>
-        <Link className="topbar-link" to="/disclaimer">非官方声明</Link>
-      </header>
+      <WorkshopHeader />
 
       <main id="public-main" className="page-shell home-page">
         <section className="hero" aria-labelledby="home-title">
           <p className="eyebrow">MIRAGE / TRAINING MANUAL</p>
-          <h1 id="home-title">告诉我，你要封哪里。</h1>
+          <h1 id="home-title">找到烟点，执行下一回合。</h1>
+          <p className="route-count"><strong>{routeCountLabel}</strong></p>
           <p className="hero-copy">
             输入 Mirage 烟雾目标；只说目标也可以，若补充起点就会直接定位路线。视频会停在封面，是否播放由你决定。
           </p>
@@ -712,6 +774,7 @@ export default function HomePage() {
           />
         )}
 
+        {!mobileDrawer && (drawerPanel || <aside className="home-detail-placeholder"><h2>教学视频与步骤</h2><p>选择目标或输入查询，查看真实路线与教学视频。视频由你主动播放。</p></aside>)}
         <aside className="scope-note" aria-label="当前范围说明">
           <span className="scope-note-label">SCOPE NOTE</span>
           <p>免费、匿名、只做 Mirage 烟雾教学；结果只来自本站目录，首版不搜索站外视频。</p>
@@ -719,75 +782,17 @@ export default function HomePage() {
       </main>
 
       <footer className="site-footer">
-        <span>SmokeLine · Mirage smoke manual</span>
+        <span>CS2 Workshop · Mirage smoke manual</span>
         <nav aria-label="页脚导航">
+          <Link to="/admin">管理员登录</Link>
           <Link to="/privacy">隐私</Link>
           <Link to="/disclaimer">非官方声明</Link>
         </nav>
       </footer>
       </div>
 
-      {drawer && (
-        <section
-          ref={drawerRef}
-          className={`route-drawer${mobileDrawer ? ' drawer-mobile' : ' drawer-desktop'}`}
-          role={mobileDrawer ? 'dialog' : 'region'}
-          aria-modal={mobileDrawer ? 'true' : undefined}
-          aria-labelledby="drawer-title"
-          tabIndex={-1}
-          onKeyDown={handleDrawerKeyDown}
-        >
-          <div className="drawer-header">
-            <div>
-              <p className="eyebrow">ROUTE NOTES</p>
-              <h2 id="drawer-title" ref={titleRef} tabIndex={-1}>
-                {drawer.kind === 'route-list' ? drawer.title :
-                    drawer.kind === 'clarification' ? '选择目标位置' :
-                    drawer.kind === 'detail' ? `${drawer.detail.origin.name_zh} → ${drawer.detail.target.name_zh}` : '检索结果'}
-              </h2>
-            </div>
-            <button className="icon-button" type="button" aria-label="关闭详情" onClick={closeDrawer}>×</button>
-          </div>
-          {drawerError && <p className="inline-error drawer-error" role="alert">{drawerError}</p>}
+      {mobileDrawer && drawerPanel}
 
-          {drawer.kind === 'route-list' && (
-            <SelectionPanel key={routeListNonce} routes={drawer.routes} notices={drawer.notices} loading={loading} onOpen={(id) => void openDetail(id)} />
-          )}
-          {drawer.kind === 'clarification' && (
-            <ClarificationCard
-              result={drawer.result}
-              onSelect={(value) => void selectClarification(value)}
-              loading={loading}
-              onEdit={closeDrawerToInput}
-            />
-          )}
-          {drawer.kind === 'notice' && <ErrorNotice result={drawer.result} onEdit={closeDrawerToInput} />}
-          {drawer.kind === 'detail' && (
-            <VideoResultPanel
-              key={`${drawer.detail.id}:${drawer.renderKey}`}
-              detail={drawer.detail}
-              notices={drawer.notices}
-              showBack={drawer.fromList}
-              loading={loading}
-              videoRef={videoRef}
-              failedLineupIds={failedLineupIds}
-              onMediaFailed={handleMediaFailed}
-              onBack={() => {
-                releaseVideo(videoRef.current);
-                if (previousRoutes.current) {
-                  setDrawer({ kind: 'route-list', routes: previousRoutes.current, notices: previousListNotices.current, title: previousListTitle.current });
-                  window.requestAnimationFrame(() => {
-                    const body = drawerRef.current?.querySelector('.drawer-body');
-                    if (body) body.scrollTop = previousListScrollTop.current;
-                  });
-                } else closeDrawer();
-              }}
-              onOpenOther={(id) => void openDetail(id)}
-              onQuickSwitch={() => quickSwitch(drawer.detail)}
-            />
-          )}
-        </section>
-      )}
     </div>
   );
 }

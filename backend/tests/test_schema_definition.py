@@ -1,5 +1,6 @@
 from sqlalchemy.dialects.postgresql import JSONB
 
+from app.db import tactics_models  # noqa: F401 - include the explicitly authorized account tables
 from app.db.models import (
     Base,
     ConversationState,
@@ -23,6 +24,26 @@ def test_runtime_model_contains_no_throw_method_business_tables() -> None:
         "conversation_states",
         "external_search_cache",
         "usage_events",
+        "users",
+        "user_sessions",
+        "notebooks",
+        "tactics",
+        "tactic_documents",
+        "tactic_versions",
+        "api_idempotency",
+        "collaboration_tickets",
+        "collaboration_grants",
+        "tactic_operations",
+        "tactic_audit_events",
+        "tactic_recovery_items",
+        "teams",
+        "team_members",
+        "team_invites",
+        "team_invite_acceptances",
+        "share_links",
+        "share_versions",
+        "share_version_items",
+        "share_read_grants",
     }
 
 

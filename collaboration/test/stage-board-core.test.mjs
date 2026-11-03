@@ -61,6 +61,54 @@ function commandOperation(room, command, expectedRevision = room.revision) {
   };
 }
 
+test('deleted action restores into a surviving stage with new identity after its original stage is deleted', async () => {
+  const core = new CollaborationCore({ store: new MultiMemoryStore() });
+  const a = await connect(core, 'actor-a');
+  const room = a.connection.room;
+  const originalId = room.structure.stages[0].id;
+  const command = async (value) => core.operation(a.connection, commandOperation(room, value));
+  await command({ type: 'stage.add', after_stage_id: originalId });
+  const targetId = room.structure.stages[1].id;
+  await command({ type: 'action.add', stage_id: originalId, kind: 'wait', role_id: room.structure.roles[0].id, group_mode: 'after', description: '删除后保留原动作说明' });
+  const original = room.structure.stages[0].actions[0];
+  await command({ type: 'action.delete', stage_id: originalId, action_id: original.id });
+  const recoveryId = room.structure.recovery.find((item) => item.kind === 'action').id;
+  await command({ type: 'stage.delete', stage_id: originalId });
+  const before = room.revision;
+  await assert.rejects(command({ type: 'recovery.restore', recovery_id: recoveryId, stage_id: originalId }), /stage_not_found/);
+  assert.equal(room.revision, before);
+  assert.ok(room.structure.recovery.some((item) => item.id === recoveryId));
+  await command({ type: 'recovery.restore', recovery_id: recoveryId, stage_id: targetId });
+  const restored = room.structure.stages[0].actions[0];
+  assert.notEqual(restored.id, original.id); assert.notEqual(restored.group_id, original.group_id);
+  assert.equal(room.doc.getMap('fields').get(actionDescriptionField(restored.id)).toString(), '删除后保留原动作说明');
+  assert.equal(room.doc.getMap('fields').has(actionDescriptionField(original.id)), false);
+  assert.equal(room.structure.recovery.find((item) => item.id === recoveryId).texts[actionDescriptionField(original.id)], '删除后保留原动作说明');
+  core.disconnect(a.connection); room.doc.destroy();
+});
+
+test('two editors conflict without overwrite and deleted stage restores all text with fresh identities', async () => {
+  const core = new CollaborationCore({ store: new MultiMemoryStore() });
+  const [a, b] = await Promise.all([connect(core, 'actor-a'), connect(core, 'actor-b')]);
+  const room = a.connection.room; const originalId = room.structure.stages[0].id;
+  const stale = commandOperation(room, { type: 'stage.add', after_stage_id: originalId });
+  await core.operation(a.connection, commandOperation(room, { type: 'action.add', stage_id: originalId, kind: 'wait', role_id: room.structure.roles[0].id, group_mode: 'after', description: '恢复整个阶段内的动作说明' }));
+  await assert.rejects(core.operation(b.connection, stale), /revision_conflict/);
+  assert.equal(room.revision, 1); assert.equal(room.structure.stages.length, 1);
+  await core.operation(a.connection, commandOperation(room, { type: 'stage.add', after_stage_id: originalId }));
+  const originalAction = room.structure.stages[0].actions[0];
+  const survivorId = room.structure.stages[1].id;
+  await core.operation(a.connection, commandOperation(room, { type: 'stage.delete', stage_id: originalId }));
+  const recovery = room.structure.recovery.find((item) => item.kind === 'stage');
+  await core.operation(b.connection, commandOperation(room, { type: 'recovery.restore', recovery_id: recovery.id, after_stage_id: survivorId }));
+  const restored = room.structure.stages[1];
+  assert.notEqual(restored.id, originalId); assert.notEqual(restored.actions[0].id, originalAction.id);
+  assert.equal(room.doc.getMap('fields').get(`stage.${restored.id}.name`).toString(), recovery.texts[`stage.${originalId}.name`]);
+  assert.equal(room.doc.getMap('fields').get(actionDescriptionField(restored.actions[0].id)).toString(), '恢复整个阶段内的动作说明');
+  assert.ok(room.structure.recovery.some((item) => item.id === recovery.id));
+  core.disconnect(a.connection); core.disconnect(b.connection); room.doc.destroy();
+});
+
 test('dynamic board uses an independent room and structural commits broadcast the matching Yjs state', async () => {
   const store = new MultiMemoryStore();
   const core = new CollaborationCore({ store });

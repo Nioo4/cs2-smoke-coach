@@ -3,7 +3,7 @@ import { applyConfirmedUpdate, encodeConfirmedDocument, replaceConfirmedDocument
 import { bindLocalTextHistory, isPersistedTextUpdateOrigin } from './text-history.mjs';
 import { applyCompositionEdit, applyTextDiff, captureComposition } from './text-editing.mjs';
 import { actionDescriptionField, expectedStageTextFields, roleNameField, stageConditionField, stageDescriptionField, stageNameField } from './stage-board-schema.mjs';
-import { groupStageActions, stagePlaybackFrame } from './stage-playback.mjs';
+import { advancePlaybackClock, canPausePlayback, groupStageActions, stagePlaybackFrame } from './stage-playback.mjs';
 import { mapClickIntent, mapPointFromRect, moveCommandFromDrawing } from './stage-board-interactions.mjs';
 import './stage-board.css';
 import './stage-board-responsive.css';
@@ -89,7 +89,9 @@ $('#stage-list').addEventListener('click', (event) => {
     const index = state.playback.snapshot.structure.stages.findIndex((stage) => stage.id === id);
     if (index >= 0) {
       state.playback.stageIndex = index; state.playback.elapsed = 0; state.playback.startedAt = performance.now(); state.playback.done = false;
-      state.playback.waiting = false; state.selectedStageId = id; render(); startAnimation();
+      state.playback.waiting = false; state.playback.paused = false;
+      state.playback.frame = stagePlaybackFrame(state.playback.snapshot.structure.stages[index], 0);
+      state.selectedStageId = id; render(); startAnimation();
     }
   } else {
     if (state.drawing && !confirm('切换阶段将取消尚未提交的地图绘制。继续？')) return;
@@ -172,7 +174,7 @@ function openSocket(token) {
     if (state.pending.size) { for (const operation of state.pending.values()) rememberFailedOperation(operation); state.pending.clear(); state.localUnconfirmed = true; }
     $('#stage-online').textContent = '连接断开'; $('#stage-reconnect').classList.remove('hidden');
     if (!state.doc) { $('#stage-connect').disabled = false; $('#stage-gate-error').textContent = '连接失败或票据无效；请重新生成本地测试票据。'; }
-    updateControls(); updateSaveState();
+    renderPresence(); updateControls(); updateSaveState();
   });
   socket.addEventListener('error', () => { $('#stage-gate-error').textContent = '本地协作服务连接失败。'; $('#stage-connect').disabled = false; });
 }
@@ -197,9 +199,12 @@ function handleMessage(message) {
     $('#stage-online').textContent = '已连接'; updateControls(); sendPresence();
   } else if (message.type === 'sync') {
     if (state.doc && (state.pending.size || state.rejectedLocal || state.localUnconfirmed)) preserveRecoveryDraft();
+    if (state.playback && (message.revision !== state.revision || message.epoch !== state.epoch)) state.playbackChanged = true;
     state.epoch = message.epoch; state.revision = message.revision; state.structure = message.structure; state.participants = message.participants ?? [];
-    state.selectedStageId = state.structure.stages.some((stage) => stage.id === state.selectedStageId) ? state.selectedStageId : state.structure.stages[0].id;
-    state.selectedRoleId = state.structure.roles.some((role) => role.id === state.selectedRoleId) ? state.selectedRoleId : state.structure.roles[0].id;
+    if (!state.playback) {
+      state.selectedStageId = state.structure.stages.some((stage) => stage.id === state.selectedStageId) ? state.selectedStageId : state.structure.stages[0].id;
+      state.selectedRoleId = state.structure.roles.some((role) => role.id === state.selectedRoleId) ? state.selectedRoleId : state.structure.roles[0].id;
+    }
     resetDocument(message.state);
     state.synced = true;
     $('#stage-gate').classList.add('hidden'); $('#stage-workspace').classList.remove('hidden');
@@ -244,7 +249,7 @@ function handleMessage(message) {
       const update = fromBase64(message.state);
       if (message.structure?.schema_kind === 'stage-board') {
         applyStructuralState(message.state, message.structure);
-        updateSelectedAfterCommand(pendingOperation?.payload?.command, message.structure, previousStructure);
+        if (!state.playback) updateSelectedAfterCommand(pendingOperation?.payload?.command, message.structure, previousStructure);
       } else applyRemoteUpdate(update);
       applyConfirmedUpdate(state.confirmedDoc, update);
       state.confirmedState = encodeConfirmedDocument(state.confirmedDoc);
@@ -277,7 +282,7 @@ function resetDocument(encoded) {
   state.doc.on('update', (update, origin) => {
     updateTextViews();
     if (!isPersistedTextUpdateOrigin(origin, state.undoManager)) return;
-    if (!state.connected || state.mobileReadOnly || state.playback) { preserveRecoveryDraft(); state.localUnconfirmed = true; updateSaveState(); return; }
+    if (!state.connected || state.mobileReadOnly || state.playback || recoveryBlocked()) { preserveRecoveryDraft(); state.localUnconfirmed = true; updateSaveState(); return; }
     const operationId = crypto.randomUUID();
     const operation = { type: 'text.update', operation_id: operationId, epoch: state.epoch, payload: { update: toBase64(update) } };
     state.pending.set(operationId, operation); state.localUnconfirmed = true; state.saved = '正在保存…'; updateSaveState();
@@ -343,15 +348,17 @@ function bindTextarea(textarea) {
       const end = Y.createAbsolutePositionFromRelativePosition(edit.selection.end, state.doc);
       if (start?.type === text && end?.type === text) textarea.setSelectionRange(start.index, end.index, textarea.selectionDirection);
     } else compositionConflict(key, textarea);
-    updateTextViews(key); sendPresence(key, textarea.selectionStart); setTimeout(flushDeferredRender, 0);
+    if (recoveryBlocked() && state.recoveryDraft) state.recoveryDraft.fields[key] = textarea.value;
+    updateTextViews(key); updateControls(); sendPresence(key, textarea.selectionStart); setTimeout(flushDeferredRender, 0);
   });
   textarea.addEventListener('input', () => {
     if (state.composing.has(key)) return;
+    if (recoveryBlocked()) { textarea.value = text.toString(); return; }
     if ([...textarea.value].length > 2000) { flash('单个文字字段最多 2000 个 Unicode 字符。'); return; }
     applyTextDiff(state.doc, text, textarea.value); sendPresence(key, textarea.selectionStart);
   });
   textarea.addEventListener('focus', () => sendPresence(key, textarea.selectionStart));
-  textarea.addEventListener('blur', flushDeferredRender);
+  textarea.addEventListener('blur', () => { flushDeferredRender(); sendPresence(); });
   textarea.addEventListener('keyup', () => sendPresence(key, textarea.selectionStart));
   textarea.addEventListener('click', () => sendPresence(key, textarea.selectionStart));
 }
@@ -360,7 +367,7 @@ function compositionConflict(key, textarea) {
   preserveRecoveryDraft();
   if (state.recoveryDraft) state.recoveryDraft.fields[key] = textarea.value;
   state.localUnconfirmed = true; state.rejectedLocal = true;
-  const current = state.doc.getMap('fields').get(key).toString();
+  const current = state.doc.getMap('fields').get(key)?.toString() ?? '';
   textarea.value = current; textarea.setSelectionRange(current.length, current.length);
   flash('组合输入无法安全合并；本地副本已保留，可导出。'); updateSaveState();
 }
@@ -590,7 +597,40 @@ function renderToolbar() {
 function renderPresence() {
   if (!state.structure) return;
   $('#stage-online').textContent = state.connected ? `${state.participants.length || 1} 位参与者在线` : '连接断开';
-  $('#presence').textContent = state.participants.map((person) => person.id === state.actorId ? '你' : person.name).join(' · ') || (state.connected ? '已连接' : '');
+  $('#presence').textContent = state.connected ? state.participants.map((person) => {
+    const name = person.id === state.actorId ? '你' : person.name;
+    const index = state.structure.stages.findIndex((stage) => stage.id === person.step_id);
+    const location = index >= 0 ? `第 ${index + 1} 阶段` : '尚未选择有效阶段';
+    const field = typeof person.field === 'string' && expectedStageTextFields(state.structure).includes(person.field) ? person.field : null;
+    const editing = field?.startsWith('role.') ? '角色名称' : field?.startsWith('action.') ? '动作说明' :
+      field?.endsWith('.name') ? '阶段名称' : field?.endsWith('.description') ? '整体说明' : field?.endsWith('.condition') ? '执行条件' : null;
+    return `${name}：${location}${index >= 0 && editing ? ` · 正在编辑${editing}` : person.field ? ' · 编辑位置已失效' : ''}`;
+  }).join('；') || '已连接' : '离线，在线位置暂不可用';
+  renderFieldPresence();
+}
+
+function renderFieldPresence() {
+  for (const textarea of $$('[data-stage-text]')) {
+    const key = textarea.dataset.stageText;
+    let badges = textarea.parentElement.querySelector('[data-field-presence]');
+    if (!badges) {
+      badges = document.createElement('span'); badges.dataset.fieldPresence = key; badges.className = 'field-presence';
+      textarea.insertAdjacentElement('afterend', badges);
+    }
+    badges.replaceChildren();
+    if (!state.connected || state.playback || !expectedStageTextFields(state.structure).includes(key)) continue;
+    for (const person of state.participants.filter((item) => item.id !== state.actorId && item.field === key && state.structure.stages.some((stage) => stage.id === item.step_id))) {
+      const badge = document.createElement('span');
+      badge.className = `field-presence-editor ${person.id === 'test-a' ? 'presence-a' : person.id === 'test-b' ? 'presence-b' : 'presence-other'}`;
+      let cursor = null;
+      try {
+        const position = Y.createAbsolutePositionFromRelativePosition(Y.decodeRelativePosition(fromBase64(person.relative_cursor)), state.doc);
+        if (position?.type === state.doc.getMap('fields').get(key)) cursor = position.index;
+      } catch { /* A stale relative cursor must not interrupt presence rendering. */ }
+      badge.textContent = `${person.name} · 正在编辑${cursor === null ? '' : ` · 光标 ${cursor}`}`;
+      badges.append(badge);
+    }
+  }
 }
 
 function renderRecovery() {
@@ -599,7 +639,9 @@ function renderRecovery() {
   $('#recovery-list').innerHTML = entries.length ? entries.map((item) => {
     const name = item.kind === 'stage' ? '已删除阶段副本' : item.kind === 'action' ? '已删除动作副本' : '已删除角色副本';
     const stageId = item.kind === 'stage' ? '' : item.snapshot.stage_id;
-    return `<div class="recovery-item"><span>${name}</span>${item.kind === 'role' || state.playback ? '<small>此类恢复尚未开放</small>' : `<button class="button" type="button" data-recovery-restore="${item.id}" data-stage-id="${stageId}">恢复为副本</button>`}</div>`;
+    const missingStage = item.kind === 'action' && !visibleStructure().stages.some((stage) => stage.id === stageId);
+    const control = state.mobileReadOnly ? '<small>请在电脑上恢复副本</small>' : item.kind === 'role' || state.playback ? '<small>此类恢复尚未开放</small>' : `<button class="button" type="button" data-recovery-restore="${item.id}" data-stage-id="${stageId}" ${canRestoreRecovery() ? '' : 'disabled'}>${missingStage ? '恢复到当前阶段为副本' : '恢复为副本'}</button>`;
+    return `<div class="recovery-item"><span>${name}</span>${control}</div>`;
   }).join('') : '<p class="empty-state">删除阶段或动作后，可在这里恢复副本。</p>';
   renderRecoveryBannerOnly();
 }
@@ -615,7 +657,7 @@ function renderPlaybackControls() {
   const frame = stagePlaybackFrame(stage, state.playback.elapsed);
   state.playback.frame = frame;
   state.playback.done = state.playback.done || frame.complete;
-  $('#play-pause').disabled = state.playback.done;
+  $('#play-pause').disabled = !canPausePlayback(state.playback);
   $('#play-pause').textContent = state.playback.paused ? '继续' : '暂停';
   $('#play-prev').disabled = state.playback.stageIndex === 0;
   $('#play-next').disabled = state.playback.stageIndex >= stages.length - 1;
@@ -638,16 +680,17 @@ function renderRecoveryBannerOnly() {
   const message = banner.querySelector(':scope > span');
   if (message) message.textContent = state.failedOperations.length
     ? `${state.failedOperations.length} 项操作未确认。可安全重试最新失败项，或先导出并确认重载服务器版本。`
-    : '有未确认草稿。导出不会标记为已保存；确认重载前请先保留副本。';
+    : '有未确认草稿。请先重试、导出或明确放弃未确认内容，再继续编辑；导出不会标记为已保存。';
   $('#retry-failed-operation')?.classList.toggle('hidden', !state.failedOperations.length);
   $('#discard-local-draft')?.classList.toggle('hidden', !unresolved);
 }
 
 function updateControls() {
-  const canEdit = state.connected && !state.playback && !state.mobileReadOnly;
+  const canEdit = state.connected && !state.playback && !state.mobileReadOnly && !recoveryBlocked();
   for (const node of $$('.edit-only')) node.classList.toggle('disabled-edit', !canEdit);
-  for (const textarea of $$('[data-stage-text]')) textarea.disabled = !canEdit;
+  for (const textarea of $$('[data-stage-text]')) textarea.disabled = !canEdit && !state.composing.has(textarea.dataset.stageText);
   for (const node of $$('#action-form button, #action-form select, #action-form textarea')) node.disabled = !canEdit;
+  for (const node of $$('[data-recovery-restore]')) node.disabled = !canRestoreRecovery();
   $('#stage-add').disabled = !canEdit || state.structure?.stages.length >= 20 || state.pending.size > 0;
   $('#role-add').disabled = !canEdit || state.structure?.roles.length >= 5 || state.pending.size > 0;
   $('#undo-text').disabled = !canEdit || !state.undoManager?.undoStack.length;
@@ -664,14 +707,14 @@ function updateControls() {
 }
 
 function bindTextHistoryButtons() {
-  $('#undo-text').disabled = !state.connected || !state.undoManager?.undoStack.length;
-  $('#redo-text').disabled = !state.connected || !state.undoManager?.redoStack.length;
+  $('#undo-text').disabled = !state.connected || recoveryBlocked() || !state.undoManager?.undoStack.length;
+  $('#redo-text').disabled = !state.connected || recoveryBlocked() || !state.undoManager?.redoStack.length;
 }
 
 function updateUndoControls() { bindTextHistoryButtons(); }
 
 function runTextHistory(action) {
-  if (!state.connected || state.playback || state.mobileReadOnly || !state.undoManager) return;
+  if (!state.connected || state.playback || state.mobileReadOnly || recoveryBlocked() || !state.undoManager) return;
   const active = document.activeElement?.matches?.('[data-stage-text]') ? document.activeElement : null;
   const text = active ? state.doc.getMap('fields').get(active.dataset.stageText) : null;
   const selection = text ? { start: Y.createRelativePositionFromTypeIndex(text, active.selectionStart), end: Y.createRelativePositionFromTypeIndex(text, active.selectionEnd), direction: active.selectionDirection } : null;
@@ -689,6 +732,7 @@ function runTextHistory(action) {
 function setTool(tool) { state.tool = tool; state.view.pan = tool === 'pan'; renderToolbar(); renderMapHint(); }
 
 function onMapClick(event) {
+  if (recoveryBlocked()) return;
   if (state.suppressMapClick) { state.suppressMapClick = false; return; }
   if (event.target.closest('[data-role-marker]')) return;
   const position = mapPoint(event);
@@ -722,7 +766,7 @@ function onMapClick(event) {
 
 function beginRolePlacement(event) {
   const button = event.target.closest('[data-role-marker]');
-  if (!button || state.tool !== 'position' || !state.connected || state.playback || state.mobileReadOnly || event.button !== 0) return;
+  if (!button || state.tool !== 'position' || !state.connected || state.playback || state.mobileReadOnly || recoveryBlocked() || event.button !== 0) return;
   event.preventDefault(); event.stopPropagation();
   const roleId = button.dataset.roleMarker;
   const move = (next) => { state.positionPreview = { roleId, point: mapPoint(next) }; renderMap(); };
@@ -765,6 +809,7 @@ async function toggleFullscreen() {
 
 function addActionFromForm(event) {
   event.preventDefault();
+  if (recoveryBlocked()) return;
   const form = $('#action-form'); const kind = form.elements.kind.value; const description = form.elements.description.value;
   if (!description.trim()) { setActionError('每个动作都需要非空说明。'); return; }
   if ([...description].length > 2000) { setActionError('动作说明最多 2000 个 Unicode 字符。'); return; }
@@ -786,6 +831,7 @@ function addActionFromForm(event) {
 }
 
 function finishDrawing() {
+  if (recoveryBlocked()) return;
   if (!state.drawing || !state.drawing.mode.endsWith('move') || state.drawing.points.length < 2) return;
   const drawing = state.drawing; state.drawing = null;
   let submitted;
@@ -844,10 +890,13 @@ async function restoreRecovery(recoveryId) {
   const item = state.structure.recovery.find((entry) => entry.id === recoveryId); if (!item || item.kind === 'role') return;
   if (item.kind === 'stage') return submitCommand({ type: 'recovery.restore', recovery_id: recoveryId, after_stage_id: state.selectedStageId });
   const select = $('#recovery-list').querySelector(`[data-recovery-restore="${cssEscape(recoveryId)}"]`);
-  return submitCommand({ type: 'recovery.restore', recovery_id: recoveryId, stage_id: select.dataset.stageId || state.selectedStageId });
+  const originalStageId = select.dataset.stageId;
+  const stageId = state.structure.stages.some((stage) => stage.id === originalStageId) ? originalStageId : state.selectedStageId;
+  return submitCommand({ type: 'recovery.restore', recovery_id: recoveryId, stage_id: stageId });
 }
 
 function submitCommand(command) {
+  if (recoveryBlocked()) { flash('请先重试、导出或明确放弃未确认内容，再继续编辑。'); return false; }
   if (!state.connected || state.mobileReadOnly || state.playback) { flash('当前状态不能编辑；请连接后在电脑上操作。'); return false; }
   if (state.pending.size) { flash('上一项正在确认保存，请稍候再提交结构变更。'); return false; }
   const operationId = crypto.randomUUID();
@@ -932,15 +981,22 @@ function exportRecovery() {
 }
 
 function captureDraft() {
+  const fields = projectCurrentFields();
+  for (const textarea of $$('[data-stage-text]')) {
+    if (state.composing.has(textarea.dataset.stageText)) fields[textarea.dataset.stageText] = textarea.value;
+  }
   return {
-    fields: projectCurrentFields(), structure: state.structure ? structuredClone(state.structure) : null,
+    fields, structure: state.structure ? structuredClone(state.structure) : null,
     form: Object.fromEntries(new FormData($('#action-form')).entries()), selectedStageId: state.selectedStageId,
     mapDraft: state.drawing ? structuredClone(state.drawing) : null,
   };
 }
 
 function preserveRecoveryDraft() {
-  state.recoveryDraft = { ...(state.recoveryDraft ?? {}), ...captureDraft() };
+  state.recoveryDraft ??= captureDraft();
+  for (const textarea of $$('[data-stage-text]')) {
+    if (state.composing.has(textarea.dataset.stageText)) state.recoveryDraft.fields[textarea.dataset.stageText] = textarea.value;
+  }
   state.localUnconfirmed = true; updateSaveState();
 }
 
@@ -952,7 +1008,17 @@ function rememberFailedOperation(operation) {
 }
 
 function removeFailedOperation(operationId) {
+  const recovered = state.failedOperations.some((item) => item.operation_id === operationId);
   state.failedOperations = state.failedOperations.filter((item) => item.operation_id !== operationId);
+  if (recovered && !state.failedOperations.length && !state.pending.size && !state.formDirty && !state.drawing && !state.composing.size) state.recoveryDraft = null;
+}
+
+function recoveryBlocked() {
+  return Boolean(state.recoveryDraft || state.rejectedLocal || state.failedOperations.length);
+}
+
+function canRestoreRecovery() {
+  return state.connected && !state.mobileReadOnly && !state.playback && !recoveryBlocked() && state.pending.size === 0;
 }
 
 function retryFailedOperation() {
@@ -999,23 +1065,23 @@ function startAnimation() {
 function playbackTick(now) {
   state.animationFrame = null; const play = state.playback; if (!play || play.paused) return;
   const stage = play.snapshot.structure.stages[play.stageIndex];
-  const elapsed = play.elapsed + now - play.startedAt;
+  const elapsed = advancePlaybackClock(play, now);
   const duration = groupStageActions(stage).length * 3_000;
   if (elapsed < duration) {
     play.frame = stagePlaybackFrame(stage, elapsed); renderMap(); renderActionHighlights(); state.animationFrame = requestAnimationFrame(playbackTick); return;
   }
-  play.elapsed = duration; play.frame = stagePlaybackFrame(stage, duration); play.done = true;
+  play.frame = stagePlaybackFrame(stage, duration); play.done = true;
+  play.waiting = play.mode === 'auto' && play.stageIndex < play.snapshot.structure.stages.length - 1;
   renderMap(); renderActionHighlights(); renderPlaybackControls();
   if (play.mode === 'auto' && play.stageIndex < play.snapshot.structure.stages.length - 1) {
-    if (!play.waiting) { play.waiting = true; play.waitStartedAt = now; }
-    if (now - play.waitStartedAt < 1_000) { state.animationFrame = requestAnimationFrame(playbackTick); return; }
+    if (elapsed < duration + 1_000) { state.animationFrame = requestAnimationFrame(playbackTick); return; }
     play.waiting = false; play.stageIndex += 1; play.elapsed = 0; play.done = false; play.startedAt = now; state.selectedStageId = play.snapshot.structure.stages[play.stageIndex].id; play.frame = stagePlaybackFrame(play.snapshot.structure.stages[play.stageIndex], 0); render(); state.animationFrame = requestAnimationFrame(playbackTick); return;
   }
   renderPlaybackControls(); updateSaveState();
 }
 
 function togglePlaybackPause() {
-  const play = state.playback; if (!play || play.done) return;
+  const play = state.playback; if (!canPausePlayback(play)) return;
   if (play.paused) { play.paused = false; play.startedAt = performance.now(); startAnimation(); }
   else pausePlayback();
   renderPlaybackControls();
@@ -1023,7 +1089,7 @@ function togglePlaybackPause() {
 
 function pausePlayback() {
   const play = state.playback; if (!play || play.paused) return;
-  play.elapsed += performance.now() - play.startedAt; play.paused = true;
+  advancePlaybackClock(play, performance.now()); play.paused = true;
   if (state.animationFrame !== null) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null; play.frame = stagePlaybackFrame(play.snapshot.structure.stages[play.stageIndex], play.elapsed);
   renderMap(); renderPlaybackControls();
@@ -1074,4 +1140,3 @@ function setActionError(message) { $('#action-error').textContent = message; }
 
 stageRoleActionOptions($('#action-form').elements.kind.value);
 updateControls();
-

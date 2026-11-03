@@ -43,11 +43,11 @@ describe('Phase 2 public shell', () => {
 
   it('shows a real search entry without future fake controls', async () => {
     renderApp();
-    expect(screen.getByRole('heading', { name: '告诉我，你要封哪里。' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '找到烟点，执行下一回合。' })).toBeVisible();
     expect(await screen.findByText('0 条可用路线')).toBeVisible();
     expect(screen.getByRole('textbox', { name: '搜索路线' })).toBeVisible();
     expect(screen.getByRole('button', { name: '立即查找' })).toBeVisible();
-    expect(screen.getByRole('link', { name: '内容管理' })).toBeVisible();
+    expect(screen.getByRole('link', { name: '管理员登录' })).toBeVisible();
     expect(screen.queryByText('录音')).not.toBeInTheDocument();
   });
 
@@ -56,6 +56,10 @@ describe('Phase 2 public shell', () => {
     fireEvent.click(screen.getByRole('link', { name: '隐私' }));
     expect(screen.getByRole('heading', { name: '隐私说明' })).toBeVisible();
     expect(screen.getByText(/后台管理员凭据只在当前页面内存中保存/)).toBeVisible();
+    expect(screen.getByText(/教学浏览不强制注册账号.*密码哈希与恢复码摘要.*7 天的 HttpOnly/)).toBeVisible();
+    expect(screen.getByText(/持有分享链接的人可以查看已发布内容/)).toBeVisible();
+    expect(screen.getByText(/最多 100 份历史.*已读取、下载或复制的内容无法收回.*额外保留最多 7 天/)).toBeVisible();
+    expect(screen.queryByText(/不使用 Cookie/)).not.toBeInTheDocument();
     expect(screen.getByText(/精确的本站目录查询不调用 AI/)).toBeVisible();
     expect(screen.getByText(/模糊中文表述.*阿里云百炼/)).toBeVisible();
     expect(screen.getByText(/首版不进行站外视频搜索/)).toBeVisible();

@@ -1,0 +1,13 @@
+.tactics-account { max-width: 760px; }
+.tactics-account.tactics-presentation-page { max-width: 1600px; }
+.tactics-account nav { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 20px; }
+.tactics-account form { margin-block: 24px; }
+.tactics-account fieldset { min-width: 0; display: grid; gap: 16px; padding: 20px; border: 1px solid var(--line); }
+.tactics-account label { display: grid; gap: 6px; }
+.tactics-account input { width: 100%; min-width: 0; }
+.tactics-account input[type="checkbox"] { width: auto; }
+.tactics-account .recovery-saved { display: flex; align-items: center; margin-block: 24px; }
+.tactics-account .recovery-saved input { width: auto; }
+.tactics-account .recovery-code { white-space: pre-wrap; overflow-wrap: anywhere; padding: 20px; background: var(--surface); border: 1px solid var(--line); user-select: all; }
+.tactic-list { list-style: none; padding: 0; }
+.tactic-list li { padding: 18px; margin-block: 16px; border: 1px solid var(--line); background: var(--surface); overflow-wrap: anywhere; }

@@ -1,3 +1,4 @@
+import WorkshopHeader from '../components/WorkshopHeader';
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -229,13 +230,8 @@ function LoginPanel({ onLogin }: { onLogin: (username: string, password: string)
   }
 
   return (
-    <div className="site-frame admin-frame">
-      <header className="simple-header">
-        <Link className="brand" to="/" aria-label="SmokeLine 首页">
-          <span className="brand-mark" aria-hidden="true">SL</span><span>SmokeLine</span>
-        </Link>
-        <span className="scope-pill">内容管理</span>
-      </header>
+    <div className="site-frame admin-frame workshop-public">
+      <WorkshopHeader />
       <main className="page-shell admin-login" aria-labelledby="admin-login-title">
         <p className="eyebrow">ADMIN / SIGN IN</p>
         <h1 id="admin-login-title">进入内容管理。</h1>
@@ -731,17 +727,12 @@ function AdminWorkspace({ authorization, authGeneration, onUnauthorized }: { aut
   }
 
   return (
-    <div className="site-frame admin-frame">
-      <header className="topbar admin-topbar">
-        <Link className="brand" to="/" aria-label="SmokeLine 首页"><span className="brand-mark" aria-hidden="true">SL</span><span>SmokeLine</span></Link>
-        <span className="scope-pill">内容管理</span>
-        {import.meta.env.MODE === 'test' && <span className="test-badge">自动化测试环境</span>}
-        <button className="text-button logout-button" type="button" onClick={() => onUnauthorized()}>退出</button>
-      </header>
+    <div className="site-frame admin-frame workshop-public">
+      <WorkshopHeader><button className="text-button" type="button" onClick={() => onUnauthorized()}>退出</button></WorkshopHeader>
       <main className="page-shell admin-page" aria-labelledby="admin-title">
         <section className="admin-heading">
           <p className="eyebrow">ADMIN / CURATED CONTENT</p>
-          <h1 id="admin-title">把一条路线教清楚。</h1>
+          <h1 id="admin-title">教学内容管理</h1>
           <p className="admin-lead">维护目录、路线、一个主视频与显式默认；已发布教学字段须先下架后修改。</p>
         </section>
         <nav className="admin-tabs" role="tablist" aria-label="管理标签">
@@ -785,8 +776,8 @@ function AdminWorkspace({ authorization, authGeneration, onUnauthorized }: { aut
         </section>}
 
         {activeTab === 'lineups' && <section id="admin-panel-lineups" role="tabpanel" aria-labelledby="admin-tab-lineups">
-          <section className="admin-section" aria-labelledby="lineup-create-title">
-            <div className="section-heading admin-section-heading"><div><p className="eyebrow">02 · LINEUP DRAFT</p><h2 id="lineup-create-title">创建路线草稿。</h2></div></div>
+          <details className="admin-section admin-create-panel">
+            <summary><h2 id="lineup-create-title">创建路线草稿。</h2><span>展开填写新路线；已有路线见下方工作台。</span></summary>
             <form className="admin-form lineup-create-form" onSubmit={createLineup}>
               <div className="form-grid two-columns">
                 <SelectField id="lineup-target" label="Target" value={lineupForm.targetId} onChange={(value) => setLineupForm((old) => ({ ...old, targetId: value }))} options={targets.filter((item) => item.is_active).map((item) => ({ value: item.id, label: `${item.name_zh} · ${item.slug}` }))} disabled={busy} />
@@ -797,7 +788,7 @@ function AdminWorkspace({ authorization, authGeneration, onUnauthorized }: { aut
               {lineupError && <p className="inline-error" role="alert">{lineupError}</p>}
               <button className="button button-primary" type="submit" disabled={busy || !targets.length || !origins.length}>保存草稿</button>
             </form>
-          </section>
+          </details>
 
           <section className="admin-section" aria-labelledby="lineup-list-title">
             <div className="section-heading admin-section-heading"><div><p className="eyebrow">03 · REVIEW & PUBLISH</p><h2 id="lineup-list-title">路线工作台。</h2></div><button className="button button-secondary" type="button" onClick={() => void loadAll()}>重新读取</button></div>

@@ -1,0 +1,81 @@
+.tactic-map-panel { min-width: 0; padding: 16px; background: var(--surface); border: 1px solid var(--line); }
+.tactic-map-panel:fullscreen { overflow: auto; background: var(--surface); }
+.tactic-map-panel:fullscreen { display: flex; flex-direction: column; height: 100vh; }
+.tactic-map-panel:fullscreen > h2 { margin-block: 0 8px; }
+.tactic-map-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
+.tactic-map-toolbar label { display: flex; gap: 8px; align-items: center; }
+.tactic-map-toolbar input { width: 110px; }
+.tactic-map-viewport { position: relative; width: min(100%, 74vh); margin-inline: auto; aspect-ratio: 1; overflow: hidden; background: #1c2423; }
+.tactic-map-resource { position: absolute; z-index: 8; inset: 0; display: grid; align-content: center; justify-items: center; background: #1c2423bb; color: white; padding: 16px; text-align: center; pointer-events: none; }
+.tactic-map-resource.is-error { pointer-events: auto; }
+.tactic-map-panel:fullscreen .tactic-map-viewport { width: min(100%, 52vh); flex: none; }
+.tactic-map-panel:fullscreen .tactic-map-description { max-height: 7vh; overflow: auto; flex: none; margin-block: 6px; }
+.tactic-map-panel:fullscreen .tactic-map-content { flex: 1; min-height: 100px; overflow: auto; }
+.tactic-map-panel:fullscreen .tactic-map-content > .tactic-map-toolbar { position: sticky; top: 0; background: var(--surface); z-index: 3; margin-top: 0; padding-block: 6px; }
+.tactic-map-viewport.is-panning { touch-action: none; cursor: grab; }
+.tactic-map-world, .tactic-map-drawing { position: absolute; inset: 0; transform-origin: center; }
+.tactic-map-drawing > img, .tactic-map-drawing > svg { position: absolute; width: 100%; height: 100%; inset: 0; }
+.tactic-map-drawing > img { object-fit: fill; user-select: none; pointer-events: none; }
+.tactic-map-drawing > svg { pointer-events: none; overflow: visible; color: #ffe38e; }
+.tactic-map-drawing polyline, .tactic-map-drawing line { fill: none; stroke: #f5db85; stroke-width: 2px; vector-effect: non-scaling-stroke; filter: drop-shadow(0 1px 1px #101918); }
+.tactic-map-drawing .utility { stroke-dasharray: 1 1; }
+.tactic-map-drawing .is-active { stroke: #ff713c; stroke-width: 3px; }
+.tactic-map-drawing .is-draft { stroke: white; stroke-dasharray: 1 1; }
+.tactic-role-anchor { position: absolute; width: 0; height: 0; }
+.tactic-role-marker { position: absolute; width: 32px; height: 32px; padding: 6px; border: 0; background: transparent; transform: translate(-50%, -50%) scale(var(--inverse-zoom)); cursor: pointer; }
+.tactic-role-marker > span { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--role-color); color: #fff; font-size: 12px; border: 1px solid white; }
+.tactic-role-marker.is-selected > span { outline: 2px solid #ffe38e; outline-offset: 2px; }
+.tactic-role-marker small { position: absolute; left: 50%; top: 31px; transform: translateX(-50%); color: white; background: #182323dc; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.tactic-map-pin { position: absolute; transform: translate(-50%, -50%) scale(var(--inverse-zoom)); padding: 2px 5px; font-size: 12px; color: white; background: #315d57; border: 1px solid white; pointer-events: none; }
+.tactic-map-peer { pointer-events: none; }
+.tactic-peer-selection, .tactic-peer-pointer { position: absolute; z-index: 4; color: var(--peer-color); transform: translate(-50%, -50%) scale(var(--inverse-zoom)); pointer-events: none; }
+.tactic-peer-selection { width: 32px; height: 32px; border: 3px solid var(--peer-color); border-radius: 50%; box-shadow: 0 0 0 1px white; }
+.tactic-peer-selection > span, .tactic-peer-pointer > span { position: absolute; left: 14px; top: 14px; width: max-content; max-width: 160px; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; color: white; background: var(--peer-color); font-size: 11px; }
+.tactic-peer-pointer { font-size: 24px; line-height: 1; text-shadow: 0 0 2px white; }
+.tactic-map-pin.is-active { background: #c24916; }
+.tactic-draft-target { background: #fff; color: #171711; border: 2px solid #f05a28; border-radius: 50%; font-size: 20px; line-height: 24px; padding: 0; width: 28px; height: 28px; text-align: center; box-shadow: 0 1px 4px #101918; }
+.tactic-map-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tactic-map-panel ol { padding-left: 24px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.tactic-map-panel [aria-current="step"] { border-left: 4px solid var(--orange); padding-left: 8px; background: #f05a2820; }
+@media (max-width: 700px) { .tactic-map-panel { padding: 8px; } .tactic-map-viewport { width: 100%; } .tactic-map-toolbar .button { min-height: 44px; } }
+.tactic-editor-header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-block: 16px; }
+.tactic-editor-grid { display: grid; grid-template-columns: minmax(150px, 17%) minmax(0, 1fr) minmax(210px, 21%); grid-template-areas: "stages map actions"; gap: 12px; }
+.tactic-editor-sidebar { grid-area: stages; }
+.tactic-editor-map { grid-area: map; }
+.tactic-editor-actions { grid-area: actions; }
+.tactic-editor-sidebar, .tactic-editor-actions { min-width: 0; padding: 12px; border: 1px solid var(--line); background: var(--surface); }
+.tactic-editor-sidebar nav { display: grid; }
+.tactic-editor-map { min-width: 0; }
+.tactic-editor-map .tactic-map-viewport { width: 100%; }
+.tactic-editor .tactic-text-field { display: grid; gap: 6px; margin-block: 16px; }
+.tactic-text-field textarea { width: 100%; min-width: 0; resize: vertical; font: inherit; padding: 8px; }
+.tactic-text-surface { display: block; position: relative; min-width: 0; }
+.tactic-text-surface textarea { display: block; line-height: 1.5; border: 1px solid var(--line); }
+.tactic-peer-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.tactic-peer-mirror { display: block; box-sizing: border-box; width: 100%; padding: 8px; border: 1px solid transparent; font: inherit; line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; }
+.tactic-peer-caret { display: inline; position: relative; border-left: 2px solid; margin-left: -2px; }
+.tactic-peer-caret > span { position: absolute; color: white; font-size: 10px; line-height: 1.2; white-space: nowrap; top: -12px; left: 0; padding: 1px 3px; }
+@media(min-width: 1000px) {
+  .tactic-map-panel:fullscreen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 30%); grid-template-rows: auto auto minmax(0, 1fr); gap: 8px 16px; }
+  .tactic-map-panel:fullscreen > h2 { grid-column: 1/-1; }
+  .tactic-map-panel:fullscreen > .tactic-map-toolbar { grid-column: 1/-1; margin-block: 0; }
+  .tactic-map-panel:fullscreen .tactic-map-viewport { grid-column: 1; grid-row: 3 / span 2; width: min(100%, 83vh); align-self: center; }
+  .tactic-map-panel:fullscreen .tactic-map-description { grid-column: 2; grid-row: 3; max-height: none; overflow: auto; }
+  .tactic-map-panel:fullscreen .tactic-map-content { grid-column: 2; grid-row: 4; min-height: 220px; max-height: 65vh; }
+}
+.tactic-text-field small { color: var(--teal); }
+.tactic-action-card { border-top: 1px solid var(--line); padding-block: 12px; }
+.tactic-teaching-references { border-block: 1px solid var(--line); padding-block: 12px; }
+.tactic-teaching-card { min-width: 0; margin-block: 12px; }
+.tactic-teaching-card .detail-body { position: static; padding: 8px; }
+.tactic-teaching-card video { max-width: 100%; }
+.tactic-teaching-references input[type="checkbox"] { width: auto; }
+.tactic-recovery { border: 2px solid var(--warning); padding: 12px; }
+.tactic-editor [role="alertdialog"] { position: fixed; z-index: 20; inset: 20% max(12px, calc((100vw - 560px) / 2)) auto; padding: 24px; border: 2px solid var(--ink); background: var(--surface); }
+@media(min-width: 1300px) { .tactic-editor-grid { grid-template-columns: minmax(140px, 16fr) minmax(0, 64fr) minmax(180px, 20fr); } }
+@media(max-width: 1100px) { .tactic-editor-grid { grid-template-columns: 170px minmax(0, 1fr); grid-template-areas: "stages map" "actions actions"; } }
+.tactic-editor-grid.is-stages-collapsed { grid-template-columns: minmax(0, 1fr) minmax(180px, 21%); grid-template-areas: "map actions"; }
+.tactic-editor-grid.is-actions-collapsed { grid-template-columns: minmax(140px, 17%) minmax(0, 1fr); grid-template-areas: "stages map"; }
+.tactic-editor-grid.is-stages-collapsed.is-actions-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map"; }
+@media(max-width: 1100px) { .tactic-editor-grid.is-stages-collapsed:not(.is-actions-collapsed) { grid-template-columns: minmax(0, 1fr); grid-template-areas: "map" "actions"; } }
+@media(max-width: 700px) { .tactic-editor-grid { display: flex; flex-direction: column; } .tactic-editor-sidebar { order: 0; } .tactic-editor-map { order: 1; } .tactic-editor-actions { order: 2; } }

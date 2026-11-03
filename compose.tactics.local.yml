@@ -1,0 +1,193 @@
+name: smokeline-tactics-t5-local
+
+# Standalone local fixture. Never merge with compose.yml/prod/dev/restore.
+services:
+  postgres:
+    image: postgres:16-bookworm@sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825
+    user: "postgres"
+    environment:
+      POSTGRES_DB: smokeline
+      POSTGRES_USER: smokeline
+      POSTGRES_PASSWORD: tactics-local-database-fixture-only
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    tmpfs:
+      - /var/run/postgresql:rw,noexec,nosuid,size=8m,uid=999,gid=999,mode=3770
+      - /tmp:rw,noexec,nosuid,size=16m,uid=999,gid=999,mode=1770
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 100
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U smokeline -d smokeline"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+    networks: [tactics-private]
+
+  spool-init:
+    image: postgres:16-bookworm@sha256:bb3e1a57e5407e0a5280b4211980a5e537f4abd234a87014ac979849a78dd825
+    user: "0:0"
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - 'test -z "$$(find /spool -mindepth 1 -maxdepth 1 -print -quit)" || exit 78; chmod 0700 /spool; chown 10001:10001 /spool'
+    volumes:
+      - tactics-spool:/spool
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    mem_limit: 64m
+    restart: "no"
+
+  backend:
+    image: smokeline-backend:tactics-t5-local
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    user: "10001:10001"
+    environment:
+      APP_ENV: test
+      TACTICS_ENABLED: "true"
+      DATABASE_URL: postgresql+psycopg://smokeline:tactics-local-database-fixture-only@postgres:5432/smokeline
+      POSTGRES_PASSWORD: tactics-local-database-fixture-only
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "0"
+      PUBLIC_BASE_URL: http://127.0.0.1:18220
+      ALLOWED_ORIGINS: http://127.0.0.1:18220
+      SITE_DOMAIN: ""
+      COLLAB_INTERNAL_URL: http://collaboration:4186
+      COLLAB_INTERNAL_KEY: tactics-local-internal-fixture-only-20261030
+      MEDIA_STORE_ROOT: /data/media-store
+      TEMP_ROOT: /data/tactics-spool
+      TMPDIR: /data/tactics-spool
+      BACKUP_ROOT: /data/backups
+      AI_PROVIDER: disabled
+      DASHSCOPE_API_KEY: ""
+      DASHSCOPE_API_HOST: ""
+      ADMIN_USERNAME: admin
+      # Reuses the existing public compose.test.yml hash fixture; never a real admin secret.
+      ADMIN_PASSWORD_HASH_B64: JGFyZ29uMmlkJHY9MTkkbT02NTUzNix0PTMscD0yJFN3R3d6dEI3UnB4NkwwdnhydXR4SlEkeDdaYjJYbEFaajExMG1qbHF2bFJISzIvZVNNMW9aQTVsckNUVElZRlZJTQ==
+    command: [python, -m, app.scripts.start]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      spool-init:
+        condition: service_completed_successfully
+    volumes:
+      - media-store:/data/media-store
+      - backups:/data/backups
+      - tactics-spool:/data/tactics-spool
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m,uid=10001,gid=10001,mode=1770
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 1024m
+    cpus: 1.5
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/readyz', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 20s
+    restart: "no"
+    networks: [tactics-private]
+
+  collaboration:
+    image: smokeline-collaboration:tactics-t5-local
+    build:
+      context: .
+      dockerfile: collaboration/Dockerfile
+    user: "1000:1000"
+    environment:
+      TACTICS_CONTAINER_MODE: local-isolated
+      TACTICS_FORMAL_PORT: "4186"
+      COLLAB_BACKEND_URL: http://backend:8000
+      COLLAB_INTERNAL_KEY: tactics-local-internal-fixture-only-20261030
+      PUBLIC_BASE_URL: http://127.0.0.1:18220
+      NODE_OPTIONS: --max-old-space-size=384
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 10s
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4186/healthz',{signal:AbortSignal.timeout(2000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: "no"
+    networks: [tactics-private]
+
+  nginx:
+    image: smokeline-nginx:tactics-t5-local
+    build:
+      context: .
+      dockerfile: deploy/tactics.frontend.Dockerfile
+    user: "10002:10002"
+    command: [nginx, -g, "daemon off;"]
+    depends_on:
+      backend:
+        condition: service_healthy
+      collaboration:
+        condition: service_started
+    ports:
+      - "127.0.0.1:18220:8080"
+    volumes:
+      - ./deploy/nginx.tactics.local.conf:/etc/nginx/nginx.conf:ro
+      - media-store:/data/media-store:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,uid=10002,gid=10002,mode=1770
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.5
+    healthcheck:
+      test: [CMD, wget, -qO-, "http://127.0.0.1:8080/api/v1/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+    networks: [tactics-private, tactics-ingress]
+
+volumes:
+  postgres-data:
+    name: smokeline-tactics-t5-local-postgres
+    labels: {com.smokeline.scope: tactics-t5-local}
+  media-store:
+    name: smokeline-tactics-t5-local-media
+    labels: {com.smokeline.scope: tactics-t5-local}
+  backups:
+    name: smokeline-tactics-t5-local-backups
+    labels: {com.smokeline.scope: tactics-t5-local}
+  tactics-spool:
+    name: smokeline-tactics-t5-local-spool
+    labels: {com.smokeline.scope: tactics-t5-local}
+
+networks:
+  tactics-ingress:
+    name: smokeline-tactics-t5-local-ingress
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.244.99.0/24
+    labels: {com.smokeline.scope: tactics-t5-local}
+  tactics-private:
+    name: smokeline-tactics-t5-local-private
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.244.98.0/24
+    labels: {com.smokeline.scope: tactics-t5-local}

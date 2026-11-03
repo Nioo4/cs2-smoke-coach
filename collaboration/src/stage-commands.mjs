@@ -28,7 +28,12 @@ export function buildStageCommand(sourceStructure, command, doc) {
       const previous = index > 0 ? structure.stages[index - 1] : null;
       const stage = { id: randomUUID(), initial_positions: previous ? stageEndPositions(previous, structure.roles) : Object.fromEntries(structure.roles.map((role) => [role.id, { x: 50, y: 50 }])), actions: [] };
       structure.stages.splice(index, 0, stage);
-      fieldSources[stageNameField(stage.id)] = literal(`阶段 ${index + 1}`);
+      let largestDefault = 0n;
+      for (const existing of sourceStructure.stages) {
+        const match = /^阶段 ([1-9]\d*)$/.exec(doc.getMap('fields').get(stageNameField(existing.id))?.toString() ?? '');
+        if (match && BigInt(match[1]) > largestDefault) largestDefault = BigInt(match[1]);
+      }
+      fieldSources[stageNameField(stage.id)] = literal(`阶段 ${largestDefault + 1n}`);
       fieldSources[stageDescriptionField(stage.id)] = literal('');
       fieldSources[stageConditionField(stage.id)] = literal('');
       break;

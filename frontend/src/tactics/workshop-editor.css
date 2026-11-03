@@ -1,0 +1,87 @@
+/* Editor-only layout: shared playback/map styling remains outside this scope. */
+.tactic-editor-loading { height: calc(100dvh - var(--editor-offset, 66px)); min-height: 480px; padding: 0 12px 12px; display: grid; grid-template-rows: 60px minmax(0,1fr); }
+.tactic-editor-loading header { display: flex; align-items: center; gap: 12px; }
+.editor-loading-map { display: grid; place-items: center; min-height: 0; border: 2px solid #24261e; background: #eee9da; }
+.tactic-editor .tactic-map-panel:fullscreen:has(.tactic-fullscreen-controls) { grid-template-rows: 44px 44px minmax(0,1fr) 150px; }
+.tactic-editor .tactic-map-panel:fullscreen:has(.tactic-fullscreen-controls) .tactic-map-viewport { width: min(100%, calc(100cqh - 250px)); }
+.tactic-editor .tactic-map-panel:fullscreen .tactic-map-content:empty { display: none; }
+.tactic-fullscreen-controls { grid-column: 1; grid-row: 4; min-height: 0; overflow: auto; padding: 8px; border-top: 1px solid #aaa68f; }
+.editor-fullscreen-draft p { margin: 4px 0; overflow-wrap: anywhere; }
+.editor-fullscreen-draft .button { margin-right: 8px; }
+.tactic-editor { position: relative; height: calc(100dvh - var(--editor-offset, 66px)); min-height: 480px; display: grid; grid-template-rows: 60px minmax(0, 1fr); padding: 0 12px 12px; overflow: hidden; color: #191a15; font-size: 13px; }
+.tactic-editor [hidden] { display: none !important; }
+.tactic-editor :is(button,input,select,textarea,fieldset,dialog) { border-radius: 0; }
+.tactic-editor .tactic-editor-header { grid-row: 1; margin: 0; padding: 8px 0; gap: 8px; flex-wrap: nowrap; min-width: 0; overflow-x: auto; }
+.tactic-editor-header > * { flex-shrink: 0; }
+.tactic-editor .editor-title { flex: 1 1 auto; min-width: 80px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; }
+.tactic-editor .editor-save-slot { display: flex; align-items: center; width: 124px; height: 34px; overflow: hidden; font-size: 12px; line-height: 1.2; border: 1px solid #aaa68f; padding: 4px; flex: 0 0 124px; }
+.editor-online-slot { width: 64px; white-space: nowrap; }
+.editor-origin { display: grid; width: 180px; min-width: 0; gap: 2px; }
+.editor-origin > :is(a,span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-origin > span { font-size: 11px; color: #65685e; }
+.editor-origin .button { font-size: 11px; padding: 2px 6px; }
+.tactic-editor .tactic-editor-grid { position: relative; grid-row: 2; display: grid; grid-template-columns: 222px minmax(0,1fr) 300px; grid-template-areas: 'stages map actions'; gap: 11px; min-height: 0; min-width: 0; }
+.tactic-editor :is(.tactic-editor-sidebar,.tactic-editor-actions) { overflow: auto; min-height: 0; padding: 12px; background: #f7f5e9; border: 1px solid #9f9e8a; scrollbar-gutter: stable; }
+.tactic-editor :is(h2,h3) { font-size: 14px; margin: 8px 0 12px; }
+.tactic-editor-sidebar nav { gap: 6px; }
+.tactic-editor-sidebar nav button { display: flex; align-items: center; text-align: left; gap: 8px; min-width: 0; height: 58px; }
+.tactic-editor-sidebar nav button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tactic-editor-sidebar nav small { display: block; font-weight: normal; }
+.tactic-editor-sidebar nav b { padding: 6px; background: #e7e0cd; border: 1px solid #b0aa96; }
+.tactic-editor [aria-pressed='true'] { background: #f6dfcb; outline: 1px solid #24261e; outline-offset: -1px; }
+.tactic-editor .editor-role-row { display: flex; width: 100%; text-align: left; gap: 8px; margin-block: 4px; overflow: hidden; }
+.editor-role-row b { width: 21px; height: 21px; background: #ed9b47; border-radius: 50%; text-align: center; }
+.tactic-editor .tactic-editor-map { position: relative; display: grid; grid-template-rows: minmax(0,1fr) 116px; gap: 9px; min-height: 0; min-width: 0; }
+.tactic-editor-map > .button { position: absolute; z-index: 2; right: 8px; bottom: 80px; max-width: 180px; font-size: 11px; }
+.tactic-editor .tactic-map-panel { position: relative; display: grid; grid-template-rows: 44px 44px minmax(0,1fr); container-type: size; padding: 0 8px 8px; min-height: 0; min-width: 0; overflow: hidden; border: 2px solid #24261e; }
+.tactic-editor .tactic-map-panel > h2 { margin: 0; padding: 12px 4px; border-bottom: 1px solid #aba793; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tactic-editor .tactic-map-panel > .tactic-map-toolbar { flex-wrap: nowrap; overflow-x: auto; margin: 0; gap: 6px; min-width: 0; border-bottom: 1px solid #c4bead; }
+.tactic-editor .tactic-map-panel > .tactic-map-toolbar > * { flex-shrink: 0; white-space: nowrap; }
+.tactic-editor .tactic-map-toolbar input { width: 60px; }
+.tactic-editor .tactic-map-viewport { grid-row: 3; align-self: center; width: min(100%, calc(100cqh - 100px)); max-height: 100%; aspect-ratio: 1; }
+.tactic-editor .tactic-role-marker > span { width: 21px; height: 21px; }
+.tactic-editor .tactic-role-marker:not(.is-selected) small { display: none; }
+.tactic-editor .tactic-text-field { margin-block: 14px; gap: 6px; }
+.tactic-editor .tactic-text-field textarea { min-height: 96px; background: #fffdf6; resize: vertical; }
+.tactic-editor .tactic-text-field textarea[rows='1'] { min-height: 36px; height: 36px; }
+.tactic-editor .tactic-editor-actions fieldset { min-width: 0; padding: 8px; }
+.tactic-editor .editor-action-strip { min-width: 0; overflow: hidden; border: 1px solid #a4a18d; background: #f7f5e9; padding: 8px; }
+.editor-action-strip h3 { height: 24px; margin: 0 0 5px; }
+.editor-action-strip h3 .button { padding: 3px 8px; }
+.editor-action-strip > div { display: flex; gap: 8px; height: 66px; overflow-x: auto; overflow-y: hidden; }
+.editor-action-strip > div > button { flex: 0 0 190px; min-width: 0; display: block; text-align: left; padding: 6px; }
+.editor-action-strip small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; }
+.editor-action-strip > div > button > span { display: block; font-size: 11px; }
+.tactic-editor .tactic-map-panel:fullscreen { grid-template-columns: minmax(0,1fr); gap: 0; }
+.tactic-editor .tactic-map-panel:fullscreen .tactic-map-viewport { grid-column: 1; grid-row: 3; width: min(100%, calc(100cqh - 100px)); }
+.tactic-editor .tactic-map-panel > :is(p,[role='alert']) { position: absolute; z-index: 2; bottom: 0; left: 0; margin: 0; background: #f7f5e9; max-width: 100%; }
+.tactic-editor .tactic-map-panel > .tactic-map-description { display: none; }
+@media (pointer: coarse) { .tactic-editor .tactic-role-marker { width: 44px; height: 44px; padding: 11px; } }
+.tactic-editor .editor-info-dialog { width: min(500px, calc(100vw - 32px)); max-height: 85dvh; overflow: auto; padding: 24px; background: #f7f5e9; border: 2px solid #24261e; box-shadow: 6px 6px 0 #191a15; }
+.editor-info-dialog::backdrop { background: #191a1566; }
+.tactic-editor :is(.editor-document-menu,.editor-state-details,.editor-panel-toggles) { position: absolute; z-index: 6; background: #f7f5e9; border: 1px solid #9f9e8a; font-size: 12px; }
+.editor-document-menu { right: 12px; top: 61px; }
+.editor-state-details { right: 12px; top: 88px; }
+.tactic-editor :is(.editor-document-menu,.editor-state-details)[open] { width: min(440px, calc(100% - 24px)); max-height: 70%; overflow: auto; padding: 12px; }
+.tactic-editor .editor-panel-menu { position: relative; }
+.tactic-editor .editor-panel-toggles { position: fixed; z-index: 8; right: 12px; top: calc(var(--editor-menu-top, 126px) + 4px); margin: 0; max-width: calc(100% - 24px); max-height: min(70dvh, max(0px, calc(100dvh - var(--editor-menu-top, 126px) - 16px))); overflow: auto; padding: 8px; }
+.tactic-editor .tactic-editor-header { overflow-y: hidden; }
+.tactic-editor .tactic-map-panel > .tactic-map-toolbar { overflow-y: hidden; }
+.tactic-editor :is(.editor-document-menu,.editor-state-details) { position: static; background: transparent; border: 0; }
+.tactic-editor :is(.editor-document-menu,.editor-state-details)[open] { width: auto; max-height: none; padding: 0; overflow: visible; }
+.tactic-editor .editor-menu-body { position: fixed; z-index: 9; top: calc(var(--editor-menu-top, 126px) + 4px); right: 12px; width: min(440px, calc(100% - 24px)); max-height: min(70dvh, max(0px, calc(100dvh - var(--editor-menu-top, 126px) - 16px))); overflow: auto; padding: 12px; border: 1px solid #24261e; background: #f7f5e9; box-shadow: 3px 3px 0 #24261e; }
+.tactic-editor details > summary { cursor: pointer; padding: 5px; }
+.tactic-editor .tactic-editor-grid.is-stages-collapsed { grid-template-columns: minmax(0,1fr) 300px; grid-template-areas: 'map actions'; }
+.tactic-editor .tactic-editor-grid.is-actions-collapsed { grid-template-columns: 222px minmax(0,1fr); grid-template-areas: 'stages map'; }
+.tactic-editor .tactic-editor-grid.is-stages-collapsed.is-actions-collapsed { grid-template-columns: minmax(0,1fr); grid-template-areas: 'map'; }
+@media (1080px < width <= 1270px) { .tactic-editor .tactic-editor-grid { grid-template-columns: 205px minmax(0,1fr) 275px; } }
+@media (width <= 1080px) {
+  .tactic-editor .tactic-editor-grid,.tactic-editor .tactic-editor-grid.is-actions-collapsed { grid-template-columns: 205px minmax(0,1fr); grid-template-areas: 'stages map'; }
+  .tactic-editor .tactic-editor-grid.is-stages-collapsed { grid-template-columns: minmax(0,1fr); grid-template-areas: 'map'; }
+  .tactic-editor .tactic-editor-actions { grid-area: auto; position: absolute; z-index: 5; right: 0; top: 0; bottom: 0; width: min(300px, calc(100% - 24px)); box-shadow: -4px 4px 0 #24261e; }
+}
+@media (width <= 820px) {
+  .tactic-editor .tactic-editor-grid,.tactic-editor .tactic-editor-grid.is-actions-collapsed { display: grid; grid-template-columns: minmax(0,1fr); grid-template-areas: 'map'; }
+  .tactic-editor .tactic-editor-sidebar { grid-area: auto; position: absolute; z-index: 5; left: 0; top: 0; bottom: 0; width: min(260px, calc(100% - 24px)); }
+  .tactic-editor-header { font-size: 12px; }
+}

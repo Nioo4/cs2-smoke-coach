@@ -8,7 +8,10 @@ from sqlalchemy import create_engine, pool
 
 from alembic import context
 from app.core.config import get_settings
-from app.db import models  # noqa: F401 - register every mapped table
+from app.db import (
+    models,  # noqa: F401 - register every mapped table
+    tactics_models,  # noqa: F401 - register ordinary account tables
+)
 from app.db.base import Base
 
 config = context.config

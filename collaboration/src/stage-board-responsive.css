@@ -1,4 +1,8 @@
 /* Dynamic board layout fixes kept separate from the compact base stylesheet. */
+.field-presence { display: flex; flex-wrap: wrap; gap: 4px; }
+.field-presence-editor { padding: 2px 5px; border-left: 4px solid #5a574c; background: #eee9d9; color: #171711; font-size: 12px; overflow-wrap: anywhere; }
+.field-presence-editor.presence-a { border-left-color: #cb5a42; }
+.field-presence-editor.presence-b { border-left-color: #4b8b82; }
 .map-viewport { width: 100%; max-width: 100%; }
 .map-heading-actions { display: flex; align-items: center; gap: 8px; }
 .stage-workspace.sidebar-collapsed { grid-template-columns: minmax(0, 1fr) 320px; }

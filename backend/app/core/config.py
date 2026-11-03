@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     daily_asr_seconds_limit: int = 600
     admin_username: str = "admin"
     admin_password_hash_b64: str = ""
+    tactics_enabled: bool = False
+    collab_internal_key: SecretStr = SecretStr("")
+    collab_internal_url: str = "http://collaboration:4186"
 
     @property
     def cors_origins(self) -> list[str]:
@@ -72,6 +75,10 @@ class Settings(BaseSettings):
         """Validate the cross-field contract before creating engines or clients."""
 
         fields: list[str] = []
+        if self.collab_internal_key.get_secret_value() and len(
+            self.collab_internal_key.get_secret_value().encode("utf-8")
+        ) < 32:
+            fields.append("COLLAB_INTERNAL_KEY")
         if self.db_pool_size < 1:
             fields.append("DB_POOL_SIZE")
         if self.db_max_overflow < 0:

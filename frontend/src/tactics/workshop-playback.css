@@ -1,0 +1,13 @@
+.workshop-playback { min-width:0; }
+.workshop-playback .tactic-map-panel:fullscreen { padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)); padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+@media(max-width:700px) { .workshop-playback .tactic-map-panel:fullscreen { padding-bottom:calc(8px + env(safe-area-inset-bottom,0px)); padding-left:max(8px,env(safe-area-inset-left,0px)); padding-right:max(8px,env(safe-area-inset-right,0px)); } }
+.workshop-playback .tactic-map-panel:not(:fullscreen) { display:grid; grid-template-columns:minmax(0,1fr) 300px; grid-template-rows:auto auto minmax(0,110px) minmax(0,1fr); gap:12px; height:clamp(500px,80dvh,900px); padding:12px; background:#f7f5e9; border:2px solid #24261e; }
+.workshop-playback .tactic-map-panel:not(:fullscreen)>h2 { grid-column:1/-1; grid-row:1; margin:0; }
+.workshop-playback .tactic-map-panel:not(:fullscreen) { padding-bottom:calc(12px + env(safe-area-inset-bottom,0px)); padding-left:max(12px,env(safe-area-inset-left,0px)); padding-right:max(12px,env(safe-area-inset-right,0px)); }
+.workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-toolbar { grid-column:1/-1; grid-row:2; margin:0; }
+.workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-viewport { grid-column:1; grid-row:3/5; height:auto; width:min(100%,calc(clamp(500px,80dvh,900px) - 160px)); min-height:0; max-height:100%; align-self:center; aspect-ratio:1; }
+.workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-description { grid-column:2; grid-row:3; min-height:0; overflow:auto; margin:0; padding:12px; background:#eee9da; border:1px solid #b7b5a5; }
+.workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-content { grid-column:2; grid-row:4; min-height:0; overflow:auto; padding:12px; border:1px solid #b7b5a5; }
+.workshop-playback .tactic-map-content li { margin-block:10px; padding:10px; border:1px solid #b7b5a5; background:#eee9da; }
+.workshop-playback .tactic-map-content [aria-current="step"] { background:#f8ddc5; border-color:#24261e; }
+@media(max-width:820px) { .workshop-playback .tactic-map-panel:not(:fullscreen) { display:flex; flex-direction:column; height:auto; min-height:0; } .workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-viewport { width:100%; height:auto; max-height:none; aspect-ratio:1; flex:none; } .workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-description { max-height:140px; } .workshop-playback .tactic-map-panel:not(:fullscreen)>.tactic-map-content { max-height:55dvh; } .workshop-playback .tactic-map-content>.tactic-map-toolbar { position:sticky; top:0; background:#f7f5e9; z-index:2; } }
