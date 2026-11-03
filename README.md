@@ -1,52 +1,98 @@
-# SmokeLine
+# SmokeLine / CS2 Workshop
 
-面向中文 CS2 玩家的 Mirage 烟雾教学检索工具，以及开发中的阶段式动态战术板。
+面向中文 CS2 玩家的烟雾教学与战术演示工具：输入想封的位置，查找已收录的教学视频；在地图上编排角色、动作与阶段，动态演示一套战术。
 
-## 功能与架构
+- **烟雾教学**：支持起点＋目标、只说目标、只说起点等查询，查看路线说明和视频。目前以 Mirage 为主。
+- **动态战术板**：编排阶段、角色站位、移动路线、道具目标和文字说明，支持自动演示、逐阶段演示与多人协作。
+- **内容管理**：管理员维护教学路线、主视频和地图目标位置。
+- **技术栈**：React、TypeScript、FastAPI、PostgreSQL；战术协作使用 Node.js、WebSocket 和 Yjs。
 
-- 文字/语音输入：从本地已发布目录查找教学路线；支持同时提供起点与目标、只给目标、只给起点、泛化查询。
-- React + TypeScript + Vite 前端，FastAPI 后端，PostgreSQL 与 Alembic 迁移，Nginx + Docker Compose 部署。
-- 确定性目录匹配优先，受约束的模型意图提取与语音转写按配置启用；模型不能凭空生成教学路线。外部视频搜索不包含在当前版本中。
-- 管理员维护路线、主视频和目标地图位置。教学素材不随源码发布。
-- `collaboration/` 为独立本地原型：Node.js、WebSocket、Yjs、PostgreSQL，支持多人文字协作、地图动作及阶段式动画演示。
+当前公开版本的战术板是独立本地原型，使用临时参与票据进入，不包含正式个人账号、队伍权限和公开分享。动画用于说明战术流程，不模拟真实游戏弹道。
 
-## 本地运行教学应用
+## 准备环境
 
-安装 Docker Desktop（Linux 容器模式）后，在仓库根目录执行：
-
-```powershell
-docker compose --env-file .env.example -p smokeline-dev -f compose.yml -f compose.dev.yml up -d --build postgres backend nginx
-```
-
-访问 http://127.0.0.1:8080 。公开示例配置默认关闭 AI 供应商；没有附带生产数据库、用户账号或教学视频。语音和模型能力需要自行配置合法的服务凭据，切勿提交真实 `.env`。
-
-开发配置的数据库口令仅供本机开发使用，不适用于公网。生产使用前必须配置独立强口令、管理员密码、TLS、访问控制与备份。
-
-停止服务但保留数据：
+安装 Git、Docker Desktop（Linux 容器模式）。运行战术板还需要 Node.js 24（含 npm）。以下命令使用 Windows PowerShell。
 
 ```powershell
-docker compose --env-file .env.example -p smokeline-dev -f compose.yml -f compose.dev.yml stop
+git clone https://github.com/Nioo4/cs2-smoke-coach.git
+cd cs2-smoke-coach
 ```
 
-## 动态战术板
+## 启动烟雾教学
 
-运行方法和双参与者本地测试票据说明见 [collaboration/README.md](collaboration/README.md)。入口 `/stage-board.html` 支持阶段编排、角色移动、道具目标、文字说明、自动演示和逐阶段演示。
+在仓库根目录执行；如果已有自己的 `.env`，保留它，不要重复复制覆盖。
 
-该模块仍是本地协作机制原型，不代表正式个人账号、队伍权限、公开分享或完整验收已经完成。示例动画只表达编排，不模拟真实游戏弹道或实战耗时。
+```powershell
+Copy-Item .env.example .env
+docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml up -d --build postgres backend nginx
+```
 
-## 目录
+首次启动需要下载镜像、安装依赖和初始化数据库。完成后打开 [教学首页](http://127.0.0.1:8080)。
 
-| 目录 | 用途 |
-| --- | --- |
-| `frontend/` | 页面、组件及前端测试 |
-| `backend/` | API、检索、媒体处理、迁移及后端测试 |
-| `collaboration/` | 动态战术板与协作原型 |
-| `deploy/` | Nginx 和运维配置模板 |
-| `scripts/` | 验证及运维辅助脚本 |
-| `evals/` | 检索评测用例 |
+### 如何使用
 
-## 发布边界
+1. 输入“我在 Mirage 匪家，想封警家烟”或“警家烟怎么丢”。
+2. 查看匹配的起点与目标，打开教学并手动播放视频。
+3. 也可以从地图选择目标位置，再查看对应路线。
 
-此仓库为当前工作版本的公开源码快照，不包含旧 Git 历史。内部施工文档、部署地址记录、验收截图、对话记录、生产数据、密钥、密码和原始素材未公开。部分内部测试说明可能引用未公开的施工文档；这不代表相关验收已对外复现。
+仓库不附带教学视频和生产数据，首次启动可能没有可播放路线，需要自行录入素材。默认关闭模型与语音服务；文字目录检索可独立使用。语音和模型意图解析需要在 `.env` 中配置供应商凭据后重建后端。当前版本不提供外部视频平台搜索。
 
-本项目非 Valve 官方产品。游戏及地图相关权利归各自权利人所有；公开展示源码不等于为第三方素材授予再分发许可。本仓库尚未指定开源许可证。
+### 录入教学素材
+
+生成管理员密码配置，按提示输入密码：
+
+```powershell
+docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml run --rm --no-deps backend python -m app.scripts.create_admin_hash
+```
+
+把输出的 `ADMIN_PASSWORD_HASH_B64=...` 替换到 `.env` 的同名配置，保留 `ADMIN_USERNAME=admin`，然后运行：
+
+```powershell
+docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml up -d backend
+```
+
+打开 [内容管理](http://127.0.0.1:8080/admin)，使用 `admin` 和刚设置的密码登录。创建起点与目标、填写路线、上传一个主视频，待处理完成后发布；同一起点与目标可以设置默认路线。
+
+停止服务并保留数据：
+
+```powershell
+docker compose --env-file .env -p smokeline-dev -f compose.yml -f compose.dev.yml stop
+```
+
+## 启动动态战术板
+
+从仓库根目录进入 `collaboration`，执行：
+
+```powershell
+cd collaboration
+npm ci
+docker compose -f compose.t0.yml up -d --wait postgres
+npm run build
+$env:TACTICS_T0_MODE = 'local'
+$env:DATABASE_URL = 'postgresql://t0_test:t0_only_local@127.0.0.1:55432/t0_tactics'
+npm start
+```
+
+保持终端运行，打开 [动态战术板](http://127.0.0.1:4173/stage-board.html)。另开一个 PowerShell 窗口，获取本地参与票据：
+
+```powershell
+$tickets = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:4173/__t0/test-tickets -Headers @{ Origin = 'http://127.0.0.1:4173' } -ContentType 'application/json' -Body '{"document_id":"mirage-stage-prototype"}'
+$tickets.participants
+```
+
+### 如何使用
+
+1. 把输出中的一份参与者票据填入页面并连接。票据五分钟内有效、只能使用一次；失效后重新获取。
+2. 创建或选择阶段，添加角色，在地图上设置站位。
+3. 添加移动、等待、观察、道具或文字动作，在地图上标记位置，填写说明，设置接续或同时执行。
+4. 使用自动演示播放整套流程，或逐阶段演示并讲解；阶段不要求填写精确时间戳。
+5. 测试多人协作时，在另一个标签页打开同一地址，使用另一份票据连接，观察彼此的修改。
+6. 等待页面显示已保存后离开。遇到未确认修改时，先导出副本，再按页面提示处理；导出不等于保存成功。
+
+停止战术板：在运行 `npm start` 的窗口按 `Ctrl+C`，再在 `collaboration` 目录执行：
+
+```powershell
+docker compose -f compose.t0.yml stop postgres
+```
+
+以上为本机运行方式，数据卷会保留。示例数据库口令仅供本地使用；不要公开 `.env`、管理员密码或参与票据。项目非 Valve 官方产品，使用视频及地图素材时请确保具备相应使用权限。
